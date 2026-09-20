@@ -34,8 +34,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build dist
-        run: pnpm run build:dist
-
-      - name: Run tests
-        run: pnpm test
+      - name: Check build, offline tests, and lint
+        env:
+          BIRD_LIVE: '0'
+        run: pnpm run check

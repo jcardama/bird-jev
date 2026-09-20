@@ -8,9 +8,7 @@ Use Node ≥22 and pnpm 10.11.0; preserve the lockfile and sweet-cookie patch.
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
-pnpm run build:dist
-BIRD_LIVE=0 pnpm exec vitest run --exclude 'tests/live/**'
-pnpm run lint
+pnpm run check
 node dist/cli.js --version
 ```
 
@@ -30,4 +28,4 @@ The local installation receipt records exact version, source commit, runtime dir
 
 Create or update only the explicitly authorized repository. Repository creation, pushing source/tags, PRs, releases, and visibility changes are distinct actions; obtain authorization for each. Verify the owner and requested visibility after creation. Never assume local installation authorizes publishing.
 
-Retain the original MIT license and recovery provenance. Version notes must distinguish implemented features from planned JEV capabilities.
+Retain the original MIT license and recovery provenance. Version notes must distinguish implemented features from planned JEV capabilities. Write release notes in short active sentences. Keep one idea per sentence. Put routine verification results in the publication receipt, not in the notes.

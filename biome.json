@@ -46,7 +46,7 @@
     }
   },
   "files": {
-    "includes": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    "includes": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/check.js"],
     "ignoreUnknown": true
   }
 }

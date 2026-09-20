@@ -1,4 +1,5 @@
 node_modules/
+/CLAUDE.local.md
 dist/
 *.log
 .pnpm-debug.log*

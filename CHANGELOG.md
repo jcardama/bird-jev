@@ -3,7 +3,7 @@
 ## 0.8.2 — 2026-09-20
 
 ### Changed
-- Rename the maintenance project/package to `bird-jev`; keep the `bird` executable, authentication, config paths, and JSON envelopes. JEV integration is deferred.
+- Rename the project/package to `bird-jev`; keep the `bird` executable, authentication, config paths, and JSON envelopes. JEV integration is deferred.
 - Pin pnpm 10.11.0 to preserve the existing patched dependency installation.
 - Search resumed with `--cursor` now respects `--count`; use `--all` explicitly for unbounded pagination.
 

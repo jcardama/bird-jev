@@ -22,6 +22,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "check": "node scripts/check.js",
     "build": "pnpm run build:dist && pnpm run build:binary",
     "build:dist": "tsc && node scripts/copy-dist-assets.js",
     "build:binary": "BIRD_VERSION=$(node -p \"require('./package.json').version\") BIRD_GIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || true) bun build --compile --minify --env=BIRD_* src/cli.ts --outfile bird",

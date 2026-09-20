@@ -1,6 +1,6 @@
 # bird-jev 🐦 — maintained Bird CLI for reading X
 
-Maintenance fork of Bird, preserving its `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered [0.8.1 source](https://github.com/rymalia/bird/tree/d5301055f44cb88c6b0a6cc4dcdc39bd88887656).
+Bird-JEV is a command-line tool and TypeScript library for reading and searching X. It builds on Bird and preserves the `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered 0.8.1 source; see [Provenance](docs/provenance.md) for recovery and license facts.
 
 Version 0.8.2 fixes search pagination. JEV capabilities are planned, not implemented: there is no `--jev` flag or TypeSafe key setup yet. This package is not published to npm. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
 
@@ -24,7 +24,7 @@ pnpm run build:dist
 node dist/cli.js --version
 ```
 
-See `docs/releasing.md` for local installation and rollback. Existing Bird credentials and `~/.config/bird` configuration continue to work.
+See `docs/releasing.md` for installation and rollback. Existing Bird credentials and `~/.config/bird` configuration continue to work.
 
 ## Quickstart
 
