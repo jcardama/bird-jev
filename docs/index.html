@@ -6,19 +6,19 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0d10" />
 
-    <title>bird.fast — fast X CLI</title>
+    <title>bird-jev — fast X CLI</title>
     <meta
       name="description"
       content="bird is a fast X CLI for tweeting, replying, and reading via the X/Twitter GraphQL API (cookie auth)."
     />
 
-    <link rel="canonical" href="https://bird.fast/" />
+    <link rel="canonical" href="https://github.com/jcardama/bird-jev" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
 
-    <meta property="og:title" content="bird.fast" />
+    <meta property="og:title" content="bird-jev" />
     <meta property="og:description" content="Fast X CLI for tweeting, replying, and reading." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://bird.fast/" />
+    <meta property="og:url" content="https://github.com/jcardama/bird-jev" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -42,18 +42,18 @@
 
     <header class="top">
       <div class="top__inner">
-        <a class="brand" href="./" aria-label="bird.fast home">
+        <a class="brand" href="./" aria-label="bird-jev home">
           <span class="brand__mark" aria-hidden="true">
             <img src="./assets/mark.svg" width="26" height="26" alt="" />
           </span>
           <span class="brand__word">bird</span>
-          <span class="brand__dot">.fast</span>
+          <span class="brand__dot">-jev</span>
         </a>
 
         <nav class="nav">
           <a class="nav__link" href="#install">Install</a>
           <a class="nav__link" href="#commands">Commands</a>
-          <a class="nav__link" href="https://github.com/steipete/bird">GitHub</a>
+          <a class="nav__link" href="https://github.com/jcardama/bird-jev">GitHub</a>
         </nav>
       </div>
     </header>
@@ -64,7 +64,7 @@
           <p class="kicker" data-reveal>Fast X CLI. Cookie auth. Zero fuss.</p>
 
           <h1 class="title" data-reveal>
-            <span class="title__big">bird</span><span class="title__dot">.fast</span>
+            <span class="title__big">bird</span><span class="title__dot">-jev</span>
           </h1>
 
           <p class="lede" data-reveal>
@@ -74,7 +74,7 @@
 
           <div class="cta" data-reveal>
             <a class="btn btn--hot" href="#install">Install</a>
-            <a class="btn btn--ghost" href="https://github.com/steipete/bird#quickstart">Quickstart</a>
+            <a class="btn btn--ghost" href="https://github.com/jcardama/bird-jev#quickstart">Quickstart</a>
           </div>
 
           <div class="terminal" data-reveal>
@@ -85,10 +85,11 @@
               <span class="terminal__label">copy &amp; run</span>
             </div>
             <div class="terminal__body">
-              <pre><code id="installCmd">npm install -g @steipete/bird
+              <pre><code id="installCmd">pnpm install --frozen-lockfile --ignore-scripts
+pnpm run build:dist
 
 bird whoami
-bird tweet "hi from bird.fast"</code></pre>
+node dist/cli.js --help</code></pre>
               <button class="copy" type="button" data-copy="#installCmd">
                 <span class="copy__idle">Copy</span>
                 <span class="copy__done" aria-hidden="true">Copied</span>
@@ -97,15 +98,15 @@ bird tweet "hi from bird.fast"</code></pre>
           </div>
 
           <div class="badges" data-reveal>
-            <a class="badge" href="https://www.npmjs.com/package/@steipete/bird">
-              <span class="badge__k">npm</span>
-              <span class="badge__v">@steipete/bird</span>
+            <a class="badge" href="https://github.com/jcardama/bird-jev">
+              <span class="badge__k">source</span>
+              <span class="badge__v">bird-jev</span>
             </a>
-            <a class="badge" href="https://github.com/steipete/bird">
+            <a class="badge" href="https://github.com/jcardama/bird-jev">
               <span class="badge__k">repo</span>
-              <span class="badge__v">steipete/bird</span>
+              <span class="badge__v">jcardama/bird-jev</span>
             </a>
-            <a class="badge" href="https://github.com/steipete/bird#authentication-graphql">
+            <a class="badge" href="https://github.com/jcardama/bird-jev#authentication-graphql">
               <span class="badge__k">auth</span>
               <span class="badge__v">cookies</span>
             </a>
@@ -118,21 +119,20 @@ bird tweet "hi from bird.fast"</code></pre>
           <h2 class="h2">Install</h2>
           <div class="cards">
             <article class="card">
-              <h3 class="h3">npm / pnpm / bun</h3>
-              <p class="p">Pick your poison. Node ≥ 20.</p>
-              <pre class="code"><code>npm install -g @steipete/bird
-pnpm add -g @steipete/bird
-bun add -g @steipete/bird</code></pre>
+              <h3 class="h3">Source build</h3>
+              <p class="p">Node ≥ 22. pnpm 10.11.0.</p>
+              <pre class="code"><code>pnpm install --frozen-lockfile --ignore-scripts
+pnpm run build:dist</code></pre>
             </article>
             <article class="card">
-              <h3 class="h3">One-shot</h3>
-              <p class="p">No install. Just prove it works.</p>
-              <pre class="code"><code>bunx @steipete/bird whoami</code></pre>
+              <h3 class="h3">Local CLI</h3>
+              <p class="p">Run the verified local build.</p>
+              <pre class="code"><code>node dist/cli.js --version</code></pre>
             </article>
             <article class="card">
-              <h3 class="h3">Homebrew (macOS)</h3>
-              <p class="p">Prebuilt Bun binary.</p>
-              <pre class="code"><code>brew install steipete/tap/bird</code></pre>
+              <h3 class="h3">Release status</h3>
+              <p class="p">Maintenance release; JEV is planned, not implemented.</p>
+              <pre class="code"><code>No npm or Homebrew publication</code></pre>
             </article>
           </div>
         </div>
@@ -206,13 +206,13 @@ bun add -g @steipete/bird</code></pre>
           </aside>
 
           <div class="footerline">
-            <a class="tiny" href="https://github.com/steipete/bird#authentication-graphql">
+            <a class="tiny" href="https://github.com/jcardama/bird-jev#authentication-graphql">
               Authentication details
             </a>
             <span class="sep" aria-hidden="true">•</span>
-            <a class="tiny" href="https://github.com/steipete/bird#config-json5">Config (JSON5)</a>
+            <a class="tiny" href="https://github.com/jcardama/bird-jev#config-json5">Config (JSON5)</a>
             <span class="sep" aria-hidden="true">•</span>
-            <a class="tiny" href="https://github.com/steipete/bird/issues">Issues</a>
+            <a class="tiny" href="https://github.com/jcardama/bird-jev/issues">Issues</a>
           </div>
         </div>
       </section>
@@ -221,9 +221,9 @@ bun add -g @steipete/bird</code></pre>
     <footer class="bottom">
       <div class="bottom__inner">
         <p class="tiny">
-          Made by <a href="https://steipete.me">Peter</a>. MIT licensed. Built for GitHub Pages.
+          Made by <a href="https://steipete.me">Peter</a>. MIT licensed. Maintained as Bird-JEV.
         </p>
-        <p class="tiny tiny--muted">bird.fast is the landing page; the project lives on GitHub.</p>
+        <p class="tiny tiny--muted">bird-jev keeps the bird executable. This page is not deployed.</p>
       </div>
     </footer>
 

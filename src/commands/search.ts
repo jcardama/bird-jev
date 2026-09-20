@@ -11,7 +11,7 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
     .argument('<query>', 'Search query (e.g., "@clawdbot" or "from:clawdbot")')
     .option('-n, --count <number>', 'Number of tweets to fetch', '10')
     .option('--all', 'Fetch all search results (paged)')
-    .option('--max-pages <number>', 'Stop after N pages when using --all')
+    .option('--max-pages <number>', 'Stop after N pages when using --all or --cursor')
     .option('--cursor <string>', 'Resume pagination from a cursor')
     .option('--json', 'Output as JSON')
     .option('--json-full', 'Output as JSON with full raw API response in _raw field')
@@ -30,7 +30,7 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
         const opts = program.opts();
         const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
         const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
-        const count = Number.parseInt(cmdOpts.count || '10', 10);
+        const count = Number(cmdOpts.count ?? '10');
 
         const pagination = parsePaginationFlags(cmdOpts);
         if (!pagination.ok) {
@@ -55,17 +55,16 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
           console.error(`${ctx.p('err')}--max-pages requires --all or --cursor.`);
           process.exit(1);
         }
-        if (!usePagination && (!Number.isFinite(count) || count <= 0)) {
+        if (!cmdOpts.all && (!Number.isSafeInteger(count) || count <= 0)) {
           console.error(`${ctx.p('err')}Invalid --count. Expected a positive integer.`);
           process.exit(1);
         }
 
         const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
         const includeRaw = cmdOpts.jsonFull ?? false;
-        const searchOptions = { includeRaw };
-        const paginationOptions = { includeRaw, maxPages, cursor: pagination.cursor };
-        const result = usePagination
-          ? await client.getAllSearchResults(query, paginationOptions)
+        const searchOptions = { includeRaw, maxPages, cursor: pagination.cursor };
+        const result = cmdOpts.all
+          ? await client.getAllSearchResults(query, searchOptions)
           : await client.search(query, count, searchOptions);
 
         if (result.success) {

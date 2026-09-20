@@ -98,22 +98,37 @@ describe('search command', () => {
     }
   });
 
-  it('uses cursor pagination when --cursor is set', async () => {
+  it('honors --count when --cursor is set', async () => {
     registerSearchCommands(program, mockContext as CliContext);
-    const getAllSpy = vi
-      .spyOn(TwitterClient.prototype, 'getAllSearchResults')
-      .mockResolvedValue({ success: true, tweets: [] });
+    const searchSpy = vi.spyOn(TwitterClient.prototype, 'search').mockResolvedValue({ success: true, tweets: [] });
 
     try {
-      await program.parseAsync(['node', 'bird', 'search', 'cats', '--cursor', 'cursor-1']);
-      expect(getAllSpy).toHaveBeenCalledWith('cats', expect.objectContaining({ cursor: 'cursor-1' }));
+      await program.parseAsync(['node', 'bird', 'search', 'cats', '--cursor', 'cursor-1', '--count', '20']);
+      expect(searchSpy).toHaveBeenCalledWith('cats', 20, expect.objectContaining({ cursor: 'cursor-1' }));
       expect(mockContext.printTweetsResult).toHaveBeenCalledWith(expect.objectContaining({ tweets: [] }), {
         json: false,
         usePagination: true,
         emptyMessage: 'No tweets found.',
       });
     } finally {
-      getAllSpy.mockRestore();
+      searchSpy.mockRestore();
+    }
+  });
+
+  it.each(['0', '-1', '1.5', '20oops', 'Infinity'])('rejects invalid resumed count %s', async (count) => {
+    registerSearchCommands(program, mockContext as CliContext);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await expect(
+        program.parseAsync(['node', 'bird', 'search', 'q', '--cursor', 'c', '--count', count]),
+      ).rejects.toThrow('exit');
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid --count'));
+    } finally {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
     }
   });
 });

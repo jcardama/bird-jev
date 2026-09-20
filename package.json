@@ -1,7 +1,14 @@
 {
-  "name": "@steipete/bird",
-  "version": "0.8.1",
-  "description": "CLI tool for tweeting and replying via Twitter/X GraphQL API",
+  "name": "bird-jev",
+  "version": "0.8.2",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "description": "Maintained Bird CLI for reading and searching X; optional JEV capabilities planned",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/jcardama/bird-jev.git"
+  },
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

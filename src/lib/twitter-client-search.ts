@@ -20,7 +20,7 @@ export interface SearchPaginationOptions extends SearchFetchOptions {
 }
 
 export interface TwitterClientSearchMethods {
-  search(query: string, count?: number, options?: SearchFetchOptions): Promise<SearchResult>;
+  search(query: string, count?: number, options?: SearchPaginationOptions): Promise<SearchResult>;
   getAllSearchResults(query: string, options?: SearchPaginationOptions): Promise<SearchResult>;
 }
 
@@ -57,7 +57,7 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
     /**
      * Search for tweets matching a query
      */
-    async search(query: string, count = 20, options: SearchFetchOptions = {}): Promise<SearchResult> {
+    async search(query: string, count = 20, options: SearchPaginationOptions = {}): Promise<SearchResult> {
       return this.searchPaged(query, count, options);
     }
 
@@ -80,6 +80,11 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
       let cursor: string | undefined = options.cursor;
       let nextCursor: string | undefined;
       let pagesFetched = 0;
+      let stalledPages = 0;
+      const visitedCursors = new Set<string>();
+      if (cursor) {
+        visitedCursors.add(cursor);
+      }
       const { includeRaw = false, maxPages } = options;
 
       const fetchPage = async (pageCount: number, pageCursor?: string) => {
@@ -217,6 +222,14 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
           return { success: false, error: page.error };
         }
         pagesFetched += 1;
+        const pageIds = new Set(page.tweets.map((tweet) => tweet.id).filter((id) => !seen.has(id)));
+        if (!unlimited && pageIds.size > limit - tweets.length) {
+          return {
+            success: false,
+            error:
+              'Search returned more posts than requested. Use --all with --max-pages to retain the complete page and its cursor.',
+          };
+        }
 
         let added = 0;
         for (const tweet of page.tweets) {
@@ -226,22 +239,20 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
           seen.add(tweet.id);
           tweets.push(tweet);
           added += 1;
-          if (!unlimited && tweets.length >= limit) {
-            break;
-          }
         }
 
         const pageCursor = page.cursor;
-        if (!pageCursor || pageCursor === cursor || page.tweets.length === 0 || added === 0) {
+        if (!pageCursor || visitedCursors.has(pageCursor)) {
           nextCursor = undefined;
           break;
         }
-        if (maxPages && pagesFetched >= maxPages) {
-          nextCursor = pageCursor;
+        visitedCursors.add(pageCursor);
+        nextCursor = pageCursor;
+        stalledPages = added === 0 ? stalledPages + 1 : 0;
+        if ((maxPages && pagesFetched >= maxPages) || stalledPages >= 3) {
           break;
         }
         cursor = pageCursor;
-        nextCursor = pageCursor;
       }
 
       return { success: true, tweets, nextCursor };

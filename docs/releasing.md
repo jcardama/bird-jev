@@ -1,59 +1,33 @@
-# Releasing bird
+# Bird-JEV releases
 
-Target destinations:
-- npm: `@steipete/bird`
-- Homebrew: tap formula in `steipete/homebrew-tap` (e.g., `bird.rb`)
+Publishing is separate from verification and local installation. Obtain explicit authorization before publishing to npm, creating a release, enabling GitHub Pages, or sending changes to the original Bird repositories. `package.json` has `private: true` to prevent accidental npm publication; this flag does not control repository visibility. The executable remains `bird`.
 
-## Checklist (npm + GitHub)
-1) Version bump
-   - Update `package.json` `version` (semver, e.g., `0.5.0`).
-   - Update `CHANGELOG.md` and tag the release section.
+## Verify a candidate
 
-2) Clean build & tests
-   - `pnpm install`
-   - `pnpm test`
-   - `pnpm run build`
+Use Node ≥22 and pnpm 10.11.0; preserve the lockfile and sweet-cookie patch.
 
-3) Publish to npm (scoped)
-   - Ensure you are logged in (`npm whoami`).
-   - `npm publish --access public` (from repo root). Package name is `@steipete/bird`.
-   - Verify:
-     - `npm view @steipete/bird version`
-     - `npx -y @steipete/bird@<version> --help`
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run build:dist
+BIRD_LIVE=0 pnpm exec vitest run --exclude 'tests/live/**'
+pnpm run lint
+node dist/cli.js --version
+```
 
-4) Git tag & GitHub release
-   - `git tag v<version> && git push origin v<version>`
-   - Create GitHub release from the tag. Include changelog notes and attach optional binary (see below).
+Live tests are excluded because upstream includes mutations. Use separately authorized, bounded read-only probes for search, cursor resume, and replies. Do not print or persist session cookies. Do not run the Bun binary build with credentials in the environment: the inherited command embeds `BIRD_*` variables.
 
-## Optional: attach compiled binary
-If you want a single-file binary for Homebrew/GitHub assets:
-- Build: `pnpm run binary` (uses Bun to produce `./bird`).
-- Upload `bird` to the GitHub release and use it for the Homebrew tarball.
+## Stage and install locally
 
-## Homebrew tap update (steipete/homebrew-tap)
-1) Package the binary
-   - From repo root: `tar -czf bird-macos-universal-v<version>.tar.gz bird`
-   - Compute SHA: `shasum -a 256 bird-macos-universal-v<version>.tar.gz`
+1. Verify and commit the candidate with the personal Git identity.
+2. Stage a version-and-commit-specific runtime outside the development checkout, containing built `dist`, package metadata, license, and the tested pnpm dependency tree. Preserve relative symlinks and the patched sweet-cookie dependency. A plain npm tarball install does not reproduce that patch.
+3. Check the stage for credential files, development artifacts, and symlinks back into the source checkout. Test CLI help/version and library imports from outside the checkout.
+4. Inspect the existing `bird` executable. Record its literal symlink target and preserve the entire previous package installation. Switch only that executable link to the staged CLI; do not replace its parent Node installation or use a forced package install to mask a collision.
+5. Check both PATH resolution and any consumer-specific executable paths. If verification fails, restore the recorded link immediately. Keep the previous installation for offline rollback.
 
-2) Update formula in tap repo
-   - File: `homebrew-tap/bird.rb` (create if absent). Model it after `poltergeist.rb`.
-   - Fields to update:
-     - `url "https://github.com/steipete/bird/releases/download/v<version>/bird-macos-universal-v<version>.tar.gz"`
-     - `sha256 "<calculated_sha>"`
-     - `version "<version>"`
-   - Install block: `bin.install "bird"`
-   - `test do`: minimal `assert_match "<version>", shell_output("#{bin}/bird --version")`
+The local installation receipt records exact version, source commit, runtime directory, original link, verification, and rollback steps. It belongs beside the runtime, not in the repository.
 
-3) Push tap changes
-   - `git add bird.rb && git commit -m "bird 0.1.0" && git push`
+## Remote changes
 
-## Release order suggestion
-1) Merge to `main` and tag.
-2) Publish npm.
-3) Build binary, upload to GitHub release.
-4) Update Homebrew tap with new URL/SHA.
+Create or update only the explicitly authorized repository. Repository creation, pushing source/tags, PRs, releases, and visibility changes are distinct actions; obtain authorization for each. Verify the owner and requested visibility after creation. Never assume local installation authorizes publishing.
 
-## Notes
-- Scoped npm name (`@steipete/bird`) requires `--access public` on first publish.
-- Homebrew formula assumes macOS universal binary; adjust URL/name if you ship per-arch.
-- Config defaults (JSON5) and Safari/Chrome/Firefox cookie selection are documented in `README.md` — keep that in sync for each release.
+Retain the original MIT license and recovery provenance. Version notes must distinguish implemented features from planned JEV capabilities.

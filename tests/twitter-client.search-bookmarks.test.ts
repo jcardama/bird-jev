@@ -268,7 +268,7 @@ describe('TwitterClient search', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('stops paginating when the next page is empty', async () => {
+  it('stops at the page budget with a resumable empty page', async () => {
     const makeSearchEntry = (id: string) => ({
       content: {
         itemContent: {
@@ -335,10 +335,11 @@ describe('TwitterClient search', () => {
       });
 
     const client = new TwitterClient({ cookies: validCookies });
-    const result = await client.search('needle', 3);
+    const result = await client.search('needle', 3, { maxPages: 2 });
 
     expect(result.success).toBe(true);
     expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1']);
+    expect(result.nextCursor).toBe('cursor-2');
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 

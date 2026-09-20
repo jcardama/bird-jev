@@ -748,19 +748,22 @@ export function extractCursorFromInstructions(
         entries?: Array<{
           content?: unknown;
         }>;
+        entry?: { content?: unknown };
       }>
     | undefined,
   cursorType = 'Bottom',
 ): string | undefined {
+  let cursor: string | undefined;
   for (const instruction of instructions ?? []) {
-    for (const entry of instruction.entries ?? []) {
+    const entries = [...(instruction.entries ?? []), ...(instruction.entry ? [instruction.entry] : [])];
+    for (const entry of entries) {
       const content = entry.content as { cursorType?: unknown; value?: unknown } | undefined;
       if (content?.cursorType === cursorType && typeof content.value === 'string' && content.value.length > 0) {
-        return content.value;
+        cursor = content.value;
       }
     }
   }
-  return undefined;
+  return cursor;
 }
 
 export function parseUsersFromInstructions(

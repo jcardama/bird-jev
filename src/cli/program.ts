@@ -72,12 +72,12 @@ export function createProgram(ctx: CliContext): Command {
   program.addHelpText(
     'beforeAll',
     () =>
-      `${ctx.colors.banner('bird')} ${ctx.colors.muted(getCliVersion())} ${ctx.colors.subtitle(
-        '— fast X CLI for tweeting, replying, and reading',
+      `${ctx.colors.banner('bird-jev')} ${ctx.colors.muted(getCliVersion())} ${ctx.colors.subtitle(
+        '— maintained Bird CLI for reading X',
       )}`,
   );
 
-  program.name('bird').description('Post tweets and replies via Twitter/X GraphQL API').version(getCliVersion());
+  program.name('bird').description('Read and search X via its GraphQL API').version(getCliVersion());
 
   const formatExample = (command: string, description: string): string =>
     `${ctx.colors.command(`  ${command}`)}\n${ctx.colors.muted(`    ${description}`)}`;

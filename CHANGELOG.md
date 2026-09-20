@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.2 — 2026-09-20
+
+### Changed
+- Rename the maintenance project/package to `bird-jev`; keep the `bird` executable, authentication, config paths, and JSON envelopes. JEV integration is deferred.
+- Pin pnpm 10.11.0 to preserve the existing patched dependency installation.
+- Search resumed with `--cursor` now respects `--count`; use `--all` explicitly for unbounded pagination.
+
+### Fixed
+- Read bottom cursors from `TimelineReplaceEntry` as well as `TimelineAddEntries`; the missing replacement cursor previously stopped live search after two pages.
+- Continue through empty or duplicate-only search pages with advancing cursors. Detect cursor cycles and bound consecutive no-progress pages, preserving the resume cursor at a safety/page limit.
+
+### Tests
+- Add search regression coverage for replacement cursors, empty/duplicate pages, cursor cycles, page limits, bounded resume, and explicit `--all` behavior.
+
 ## 0.8.1 — 2026-02-24
 
 ### Added

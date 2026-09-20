@@ -1,6 +1,8 @@
-# bird 🐦 — fast X CLI for tweeting, replying, and reading
+# bird-jev 🐦 — maintained Bird CLI for reading X
 
-`bird` is a fast X CLI for tweeting, replying, and reading via X/Twitter GraphQL (cookie auth).
+Maintenance fork of Bird, preserving its `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered [0.8.1 source](https://github.com/rymalia/bird/tree/d5301055f44cb88c6b0a6cc4dcdc39bd88887656).
+
+Version 0.8.2 fixes search pagination. JEV capabilities are planned, not implemented: there is no `--jev` flag or TypeSafe key setup yet. This package is not published to npm. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
 
 ## Disclaimer
 
@@ -12,22 +14,17 @@ Bots are not welcome on X/Twitter. If you absolutely have to, use browser automa
 
 ## Install
 
-```bash
-npm install -g @steipete/bird
-# or
-pnpm add -g @steipete/bird
-# or
-bun add -g @steipete/bird
-
-# one-shot (no install)
-bunx @steipete/bird whoami
-```
-
-Homebrew (macOS, prebuilt Bun binary):
+Requires Node ≥22 and pnpm 10.11.0. Build from source; there is no registry or Homebrew release of bird-jev.
 
 ```bash
-brew install steipete/tap/bird
+git clone git@github.com:jcardama/bird-jev.git
+cd bird-jev
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run build:dist
+node dist/cli.js --version
 ```
+
+See `docs/releasing.md` for local installation and rollback. Existing Bird credentials and `~/.config/bird` configuration continue to work.
 
 ## Quickstart
 
@@ -131,7 +128,7 @@ By default, the command fetches from For You, News, Sports, and Entertainment ta
 `bird` can be used as a library (same GraphQL client as the CLI):
 
 ```ts
-import { TwitterClient, resolveCredentials } from '@steipete/bird';
+import { TwitterClient, resolveCredentials } from 'bird-jev';
 
 const { cookies } = await resolveCredentials({ cookieSource: 'safari' });
 const client = new TwitterClient({ cookies });
@@ -177,7 +174,7 @@ Fields:
 - `bird <tweet-id-or-url> [--json]` — shorthand for `read` when only a URL or ID is provided.
 - `bird replies <tweet-id-or-url> [--all] [--max-pages n] [--cursor string] [--delay ms] [--json]` — list replies to a tweet.
 - `bird thread <tweet-id-or-url> [--all] [--max-pages n] [--cursor string] [--delay ms] [--author-chain] [--author-only] [--rooted-thread] [--thread-meta] [--json]` — show the full conversation thread; `--author-chain` filters to the author's connected self-reply chain; `--author-only` includes all tweets from the target tweet's author; `--rooted-thread` keeps the reply chain from root through the target and descendants; `--thread-meta` adds thread position metadata fields.
-- `bird search "<query>" [-n count] [--all] [--max-pages n] [--cursor string] [--json]` — search for tweets matching a query; `--max-pages` requires `--all` or `--cursor`.
+- `bird search "<query>" [-n count] [--all] [--max-pages n] [--cursor string] [--json]` — search for tweets matching a query; `--cursor` resumes while respecting `--count` (default 10). Use `--all` explicitly to ignore the count. `--max-pages` requires `--all` or `--cursor`. Empty or duplicate-only pages are followed while their cursor advances; three consecutive no-progress pages stop the search with a resume cursor. Repeated cursors terminate the loop. If X returns more unique posts than the requested count, the command fails rather than silently skipping unseen posts on resume; retry with `--all --max-pages` to retain whole pages.
 - `bird mentions [-n count] [--user @handle] [--json]` — find tweets mentioning a user (defaults to the authenticated user).
 - `bird user-tweets <@handle> [-n count] [--cursor string] [--max-pages n] [--delay ms] [--json]` — get tweets from a user's profile timeline.
 - `bird bookmarks [-n count] [--folder-id id] [--all] [--max-pages n] [--cursor string] [--expand-root-only] [--author-chain] [--author-only] [--full-chain-only] [--include-ancestor-branches] [--include-parent] [--thread-meta] [--sort-chronological] [--json]` — list your bookmarked tweets (or a specific bookmark folder); expansion flags control thread context; `--max-pages` requires `--all` or `--cursor`.
@@ -376,15 +373,12 @@ bird tweet "hi" --media img.png --alt "desc"
 ## Development
 
 ```bash
-cd ~/Projects/bird
-pnpm install
-pnpm run build       # dist/ + bun binary
-pnpm run build:dist  # dist/ only
-pnpm run build:binary
+cd ~/projects/bird-jev
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run build:dist
 
-pnpm run dev tweet "Test"
-pnpm run dev -- --plain check
-pnpm test
+pnpm run dev -- --help
+BIRD_LIVE=0 pnpm exec vitest run --exclude 'tests/live/**'
 pnpm run lint
 ```
 
