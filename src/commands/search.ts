@@ -1,4 +1,4 @@
-import type { Command } from 'commander';
+import { type Command, Option } from 'commander';
 import { addJevOptions, completeJevCommand, type JevCommandOptions, prepareJevOrExit } from '../cli/jev.js';
 import { ordinaryTweetsJsonData } from '../cli/jev-output.js';
 import { parsePaginationFlags } from '../cli/pagination.js';
@@ -13,6 +13,7 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
       .description('Search for tweets')
       .argument('<query>', 'Search query (e.g., "@clawdbot" or "from:clawdbot")')
       .option('-n, --count <number>', 'Number of tweets to fetch', '10')
+      .addOption(new Option('--mode <mode>', 'Search ranking').choices(['top', 'latest']).default('latest'))
       .option('--all', 'Fetch all search results (paged)')
       .option('--max-pages <number>', 'Stop after N pages when using --all or --cursor')
       .option('--cursor <string>', 'Resume pagination from a cursor')
@@ -23,6 +24,7 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
       query: string,
       cmdOpts: {
         count?: string;
+        mode?: 'top' | 'latest';
         all?: boolean;
         maxPages?: string;
         cursor?: string;
@@ -66,7 +68,12 @@ export function registerSearchCommands(program: Command, ctx: CliContext): void 
 
       const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
       const includeRaw = cmdOpts.jsonFull ?? false;
-      const searchOptions = { includeRaw, maxPages, cursor: pagination.cursor };
+      const searchOptions = {
+        includeRaw,
+        maxPages,
+        cursor: pagination.cursor,
+        mode: cmdOpts.mode === 'top' ? ('Top' as const) : ('Latest' as const),
+      };
       const result = cmdOpts.all
         ? await client.getAllSearchResults(query, searchOptions)
         : await client.search(query, count, searchOptions);

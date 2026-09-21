@@ -12,7 +12,7 @@
   "description": "Maintained Bird CLI for reading and searching X with opt-in JEV analysis",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/jcardama/bird-jev.git"
+    "url": "git+https://github.com/jcardama/bird-jev.git"
   },
   "license": "MIT",
   "type": "module",
@@ -71,7 +71,8 @@
     "tar": "7.5.22",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "yaml": "2.9.1"
   },
   "engines": {
     "node": ">=22"

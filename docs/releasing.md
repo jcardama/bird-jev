@@ -39,22 +39,47 @@ pnpm run check:package --tarball /absolute/path/bird-jev-0.10.0.tgz --output /ab
 
 The receipt records source commit, dirty-candidate status, tool versions, artifact integrity, patched dependency hashes, and actual verification results. Reuse requires the original adjacent receipt, matching artifact bytes, and the same source commit before any install or execution. A second-runtime verification preserves that receipt and writes a separate runtime result. A dirty-tree artifact remains development evidence, not a publishable release candidate; reuse never makes it clean.
 
-## Publish the verified artifact
+## Publish through a GitHub release
 
-For a PR-based release, wait for the authorized merge and passing CI, then build and verify a new artifact from the exact merged commit. Do not publish a pre-merge tarball as though it came from the merge commit.
+After `.github/workflows/publish.yml` is merged and npm trust is configured, publishing an eligible GitHub release is the explicit trigger for npm publication. The order becomes **GitHub release → verification → npm publication**. A published GitHub release does not by itself mean the npm package is available; inspect the workflow result.
 
-1. Verify a clean checkout, exact candidate commit, version, and intended npm account with `npm whoami --registry=https://registry.npmjs.org/`. Use normal npm login/2FA; never paste tokens into command arguments, receipts, or chat.
-2. Confirm the version is not already published. Recheck the retained artifact's digest against its successful verification receipt.
-3. Publish that file, without rebuilding:
+### One-time npm trust setup
 
-   ```sh
-   npm publish /absolute/path/bird-jev-0.10.0.tgz --ignore-scripts --access public --tag latest --registry=https://registry.npmjs.org/
-   ```
+The package must already exist on npm before a trusted publisher can be configured; `bird-jev` already meets this prerequisite. An initial publication of a new package requires the separately authorized manual path below.
 
-4. Check registry version, ownership, executable metadata, and `dist.integrity` against the verified tarball. Verify a clean registry install outside the checkout without changing any global executable.
-5. Create the matching version tag at the verified source commit and publish the authorized GitHub release. Preserve existing releases and tags. Release notes distinguish implemented behavior from plans and disclose material limitations; routine test results belong in the publication receipt.
+An authorized npm package owner must configure a GitHub Actions trusted publisher for `bird-jev` in npm's package settings:
 
-npm versions are immutable. If npm succeeds but a GitHub or bookkeeping step fails, record the partial outcome and complete only the missing step. Do not republish, unpublish, move tags, or force-push to repair bookkeeping.
+| Setting | Value |
+| --- | --- |
+| GitHub organization or user | `jcardama` |
+| Repository | `bird-jev` |
+| Workflow filename | `publish.yml` |
+| GitHub environment | Leave empty; this workflow does not use an environment |
+
+This is an account-security change, separate from merging the workflow. Do not create a long-lived npm token or a bypass-2FA token as a substitute. No `NPM_TOKEN` or `NODE_AUTH_TOKEN` secret is required. Trusted publishing requires GitHub-hosted runners, Node ≥22.14.0, and npm ≥11.5.1; the workflow uses pinned compatible tools. The package repository URL must stay `git+https://github.com/jcardama/bird-jev.git` for provenance to match. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+
+### Release procedure
+
+1. Prepare a new stable version and changelog in source, obtain the authorized merge to `main`, and wait for CI. Publication does not bump the version or merge a PR.
+2. Create the authorized `vX.Y.Z` tag at the intended commit on `main`. The version must match `package.json`, and the tagged commit must include this workflow; prereleases are not published. Preserve existing tags and releases rather than repurposing them as activation tests.
+3. Publish the GitHub release with user-facing notes that distinguish implemented behavior from plans and disclose material limitations. Routine test results belong in verification receipts, not release notes.
+4. The verification job checks the release identity and main ancestry, installs the frozen pnpm tree, runs `check` and `check:package`, then binds the retained tarball to a clean, passing receipt and the exact tagged SHA. This job has read-only repository permission and no OIDC permission.
+5. A separate publishing job downloads that exact artifact. It has OIDC permission but no source checkout, build, or package execution. Built-in Node APIs validate the receipt and digests before publication. The only operation on the Bird-JEV package is `npm publish <verified.tgz> --ignore-scripts --access public --tag latest` against the fixed public registry.
+6. Check the workflow summary and registry version, executable metadata, and integrity. The workflow creates neither tags nor releases and never changes a local installation.
+
+Registry responses fail closed: only HTTP 404 means a version is absent. An existing version is accepted only when its identity and integrity match the verified artifact; that path does not invoke `npm publish` or change dist-tags. A new version must be newer than the current stable `latest`. Authentication, transport, server, malformed metadata, and integrity errors stop publication. There is one publish attempt per run; bounded post-publish visibility checks do not repeat it.
+
+Publishing runs are serialized package-wide with `cancel-in-progress: false`, so a new run does not cancel an active publication. GitHub concurrency is not a durable FIFO queue: a newer pending run can replace an older pending run. Release one version at a time and check its outcome before starting another. GitHub concurrency does not coordinate manual publications; do not publish manually while a workflow run is active.
+
+### Failure and recovery
+
+If publication fails, retain the exact artifact, receipt, workflow URL, and failure. Correct the specific setup or registry problem, then rerun the failed workflow; do not manufacture a different artifact for the same version. A rerun can safely recognize a version that was published before a later verification or bookkeeping failure, provided its integrity matches. If a pending run was superseded, an authorized maintainer can rerun it; an older absent version will be rejected once a newer version is `latest`.
+
+npm versions are immutable. Never unpublish, move tags, force-push, or downgrade `latest` to repair bookkeeping. Do not delete and recreate a GitHub release to trigger another publication. A provenance or npm trust failure is a setup error to investigate, not authorization to weaken authentication or change the repository URL on the fly.
+
+### Explicit manual publication
+
+Manual publication remains a separately authorized recovery path, not the automatic fallback. Verify a clean merged candidate, run both gates, check the intended npm account with `npm whoami --registry=https://registry.npmjs.org/`, and use normal login/2FA. Publish the retained tarball with lifecycle scripts disabled, never a rebuilt working directory. Recheck registry integrity afterward. Never paste tokens or authentication codes into command arguments, receipts, or chat.
 
 ## Stage and install locally
 

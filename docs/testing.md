@@ -40,6 +40,16 @@ Use `--output /absolute/external/directory` to retain the artifact and receipt i
 
 Packaging policy and patched-provider regression tests belong in the ordinary offline suite, using synthetic archives and mocked OS/database/Keychain boundaries. Real browser decryption on macOS is not implied by these tests. The provider fixture uses built-in SQLite; that suite skips on older Node 22 minors where the builtin is unavailable. The current Node 22 CI runtime runs it.
 
+## Release automation verification (offline)
+
+```sh
+pnpm exec vitest run tests/package-release.test.ts --exclude 'tests/live/**'
+```
+
+The release tests parse the real `publish.yml` workflow and execute its actual inline publishing logic with mocked filesystem, registry, process, and timer boundaries. No real `npm publish`, OIDC exchange, credential access, GitHub mutation, X request, or paid JEV call is allowed. The VM is a test seam for trusted code, not a security sandbox.
+
+Coverage includes release identity, clean receipts, exact artifact bytes, permissions and artifact handoff, existing-version idempotency, newer-`latest` rejection, registry errors, and bounded visibility checks after one publish attempt. Validate workflow syntax with `actionlint` as well. These checks do not establish that npm's external trusted-publisher setting is configured; the first authorized release is the integration test of that setting. See [Releases](releasing.md) for setup and recovery.
+
 ## Live tests (separately authorized)
 
 These suites run the CLI against real X GraphQL endpoints. They contain both read checks and opt-in mutations, including follow/unfollow, likes, retweets, and bookmarks. They are not a read-only verification gate. Obtain separate authorization for the exact live operations; none are part of `pnpm run check` or CI.

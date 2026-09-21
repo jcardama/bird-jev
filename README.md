@@ -68,6 +68,7 @@ bird thread 1234567890123456789 --max-pages 3 --json
 
 # Search + mentions
 bird search "from:steipete" -n 5
+bird search "from:steipete" --mode top -n 20 --json
 bird mentions -n 5
 bird mentions --user @steipete -n 5
 
@@ -107,6 +108,8 @@ bird followers --user 12345678 -n 10  # by user ID
 # Refresh GraphQL query IDs cache (no rebuild)
 bird query-ids --fresh
 ```
+
+Search defaults to `--mode latest`; `--mode top` requests X's Top ranking on every page, including resumed cursors. Top is X's ranking, not a local engagement sort or a guarantee of credibility. Use the same query and mode when resuming a cursor.
 
 ## JEV analysis
 
@@ -170,6 +173,7 @@ const client = new TwitterClient({ cookies });
 
 // Search for tweets
 const searchResult = await client.search('from:steipete', 50);
+const topResults = await client.search('from:steipete', 50, { mode: 'Top' });
 
 // Fetch news and trending topics from all tabs (default: For You, News, Sports, Entertainment)
 const newsResult = await client.getNews(10, { aiOnly: true });
@@ -209,7 +213,7 @@ Fields:
 - `bird <tweet-id-or-url> [--json]` — shorthand for `read` when only a URL or ID is provided.
 - `bird replies <tweet-id-or-url> [--all] [--max-pages n] [--cursor string] [--delay ms] [--json]` — list replies to a tweet.
 - `bird thread <tweet-id-or-url> [--all] [--max-pages n] [--cursor string] [--delay ms] [--author-chain] [--author-only] [--rooted-thread] [--thread-meta] [--json]` — show the full conversation thread; `--author-chain` filters to the author's connected self-reply chain; `--author-only` includes all tweets from the target tweet's author; `--rooted-thread` keeps the reply chain from root through the target and descendants; `--thread-meta` adds thread position metadata fields.
-- `bird search "<query>" [-n count] [--all] [--max-pages n] [--cursor string] [--json]` — search for tweets matching a query; `--cursor` resumes while respecting `--count` (default 10). Use `--all` explicitly to ignore the count. `--max-pages` requires `--all` or `--cursor`. Empty or duplicate-only pages are followed while their cursor advances; three consecutive no-progress pages stop the search with a resume cursor. Repeated cursors terminate the loop. If X returns more unique posts than the requested count, the command fails rather than silently skipping unseen posts on resume; retry with `--all --max-pages` to retain whole pages.
+- `bird search "<query>" [-n count] [--mode top|latest] [--all] [--max-pages n] [--cursor string] [--json]` — search for tweets matching a query, using `latest` by default; `--cursor` resumes while respecting `--count` (default 10). Keep the query and mode unchanged when resuming a cursor. Use `--all` explicitly to ignore the count. `--max-pages` requires `--all` or `--cursor`. Empty or duplicate-only pages are followed while their cursor advances; three consecutive no-progress pages stop the search with a resume cursor. Repeated cursors terminate the loop. If X returns more unique posts than the requested count, the command fails rather than silently skipping unseen posts on resume; retry with `--all --max-pages` to retain whole pages.
 - `bird mentions [-n count] [--user @handle] [--json]` — find tweets mentioning a user (defaults to the authenticated user).
 - `bird user-tweets <@handle> [-n count] [--cursor string] [--max-pages n] [--delay ms] [--json]` — get tweets from a user's profile timeline.
 - `bird bookmarks [-n count] [--folder-id id] [--all] [--max-pages n] [--cursor string] [--expand-root-only] [--author-chain] [--author-only] [--full-chain-only] [--include-ancestor-branches] [--include-parent] [--thread-meta] [--sort-chronological] [--json]` — list your bookmarked tweets (or a specific bookmark folder); expansion flags control thread context; `--max-pages` requires `--all` or `--cursor`.

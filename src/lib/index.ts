@@ -37,7 +37,7 @@ export {
 } from './twitter-client.js';
 export type { HomeTimelineFetchOptions } from './twitter-client-home.js';
 export type { ExploreTab, NewsFetchOptions, NewsItem, NewsResult } from './twitter-client-news.js';
-export type { SearchFetchOptions } from './twitter-client-search.js';
+export type { SearchFetchOptions, SearchMode, SearchPaginationOptions } from './twitter-client-search.js';
 export type { TimelineFetchOptions } from './twitter-client-timelines.js';
 export type { TweetFetchOptions } from './twitter-client-tweet-detail.js';
 export type {
