@@ -93,12 +93,18 @@ export function createProgram(ctx: CliContext): Command {
           'bird 1234567890123456789 --json',
           'Read a tweet (ID or URL shorthand for `read`) and print JSON',
         ),
+        formatExample(
+          'bird search "public transit" --jev --relevance "Firsthand experiences"',
+          'Analyze selected posts with a relevance preset (requires TYPESAFE_API_KEY)',
+        ),
       ].join('\n\n')}\n\n${ctx.colors.section('Shortcuts')}\n${[
         formatExample('bird <tweet-id-or-url> [--json]', 'Shorthand for `bird read <tweet-id-or-url>`'),
       ].join('\n\n')}\n\n${ctx.colors.section('JSON Output')}\n${ctx.colors.muted(
         `  Add ${ctx.colors.option('--json')} to: read, replies, thread, search, mentions, bookmarks, likes, following, followers, about, lists, list-timeline, user-tweets, query-ids`,
       )}\n${ctx.colors.muted(
         `  Add ${ctx.colors.option('--json-full')} to include raw API response in ${ctx.colors.argument('_raw')} field (tweet commands only)`,
+      )}\n${ctx.colors.muted(
+        `  With ${ctx.colors.option('--jev')}, eligible read commands print one ${ctx.colors.argument('{ data, jev }')} JSON document`,
       )}\n${ctx.colors.muted(`  (Run ${ctx.colors.command('bird <command> --help')} to see per-command flags.)`)}`,
   );
 
@@ -110,7 +116,7 @@ export function createProgram(ctx: CliContext): Command {
       )}\n${ctx.colors.muted(
         `  Supports: chromeProfile, chromeProfileDir, firefoxProfile, cookieSource, cookieTimeoutMs, timeoutMs, quoteDepth`,
       )}\n\n${ctx.colors.section('Env')}\n${ctx.colors.muted(
-        `  ${ctx.colors.option('NO_COLOR')}, ${ctx.colors.option('BIRD_TIMEOUT_MS')}, ${ctx.colors.option('BIRD_COOKIE_TIMEOUT_MS')}, ${ctx.colors.option('BIRD_QUOTE_DEPTH')}`,
+        `  ${ctx.colors.option('NO_COLOR')}, ${ctx.colors.option('BIRD_TIMEOUT_MS')}, ${ctx.colors.option('BIRD_COOKIE_TIMEOUT_MS')}, ${ctx.colors.option('BIRD_QUOTE_DEPTH')}, ${ctx.colors.option('TYPESAFE_API_KEY')}`,
       )}`,
   );
 

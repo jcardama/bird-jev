@@ -29,6 +29,8 @@ export interface NewsFetchOptions {
   aiOnly?: boolean;
   /** Fetch from specific tabs only (default: all tabs) */
   tabs?: ExploreTab[];
+  /** Report failed tab or related-post fetches instead of returning a partial success. */
+  strictCollection?: boolean;
 }
 
 export interface NewsItem {
@@ -52,6 +54,7 @@ export type NewsResult =
   | {
       success: false;
       error: string;
+      items?: NewsItem[];
     };
 
 export interface TwitterClientNewsMethods {
@@ -77,6 +80,7 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
         tweetsPerItem = 5,
         aiOnly = false,
         tabs = ['forYou', 'news', 'sports', 'entertainment'],
+        strictCollection = false,
       } = options;
 
       const debug = process.env.BIRD_DEBUG === '1';
@@ -96,7 +100,7 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
         }
 
         try {
-          const tabItems = await this.fetchTimelineTab(tab, timelineId, count, aiOnly, includeRaw);
+          const tabItems = await this.fetchTimelineTab(tab, timelineId, count, aiOnly, includeRaw, strictCollection);
 
           // Deduplicate across tabs
           for (const item of tabItems) {
@@ -115,6 +119,9 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
             break;
           }
         } catch (error) {
+          if (strictCollection) {
+            return { success: false, error: `Failed to fetch news tab: ${tab}`, items: allItems.slice(0, count) };
+          }
           if (debug) {
             console.error(`[getNews] Error fetching tab ${tab}:`, error);
           }
@@ -130,7 +137,10 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
       const items = allItems.slice(0, count);
 
       if (withTweets) {
-        await this.enrichWithTweets(items, tweetsPerItem, includeRaw);
+        const error = await this.enrichWithTweets(items, tweetsPerItem, includeRaw, strictCollection);
+        if (error) {
+          return { success: false, error, items };
+        }
       }
 
       return { success: true, items };
@@ -145,6 +155,7 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
       maxCount: number,
       aiOnly: boolean,
       includeRaw: boolean,
+      strictCollection: boolean,
     ): Promise<NewsItem[]> {
       const queryId = await this.getQueryId('GenericTimelineById');
       const features = buildExploreFeatures();
@@ -188,6 +199,10 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
 
       if (data.errors && data.errors.length > 0) {
         throw new Error(data.errors.map((e) => e.message).join('; '));
+      }
+
+      if (strictCollection && !Array.isArray(data?.data?.timeline?.timeline?.instructions)) {
+        throw new Error('Invalid news timeline response');
       }
 
       // Parse timeline response
@@ -397,7 +412,12 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
       return item;
     }
 
-    private async enrichWithTweets(items: NewsItem[], tweetsPerItem: number, includeRaw: boolean): Promise<void> {
+    private async enrichWithTweets(
+      items: NewsItem[],
+      tweetsPerItem: number,
+      includeRaw: boolean,
+      strictCollection: boolean,
+    ): Promise<string | undefined> {
       const debug = process.env.BIRD_DEBUG === '1';
 
       for (const item of items) {
@@ -415,14 +435,23 @@ export function withNews<TBase extends AbstractConstructor<TwitterClientBase>>(
 
             if (result.success && result.tweets) {
               item.tweets = result.tweets;
+            } else if (strictCollection) {
+              if (result.tweets) {
+                item.tweets = result.tweets;
+              }
+              return 'Failed to fetch related posts for a news item';
             }
           }
         } catch {
+          if (strictCollection) {
+            return 'Failed to fetch related posts for a news item';
+          }
           if (debug) {
             console.error('[getNews] Failed to enrich item with tweets:', item.headline);
           }
         }
       }
+      return undefined;
     }
   }
 

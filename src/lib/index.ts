@@ -7,6 +7,23 @@ export {
   resolveCredentials,
   type TwitterCookies,
 } from './cookies.js';
+export { analyzePosts } from './jev.js';
+export { createJevPresets, validateJevSpec } from './jev-spec.js';
+export type {
+  AnalyzePosts,
+  JevAnalysisOptions,
+  JevCollectionContext,
+  JevErrorCode,
+  JevFailure,
+  JevOutcome,
+  JevOutput,
+  JevReceipt,
+  JevReport,
+  JevScope,
+  JevSpec,
+  JevTask,
+  JevUsage,
+} from './jev-types.js';
 export { runtimeQueryIds } from './runtime-query-ids.js';
 export {
   type CurrentUserResult,

@@ -2,7 +2,7 @@
 
 Bird-JEV is a command-line tool and TypeScript library for reading and searching X. It builds on Bird and keeps the `bird` command, library API, cookie authentication, and configuration paths.
 
-JEV capabilities are planned, not implemented. Inherited write commands remain available, but maintenance and verification focus on reads.
+JEV analysis is opt-in on post-producing reads. Custom tasks can evaluate individual posts or the selected collection; see `docs/jev.md`. Inherited write commands remain available, but maintenance and verification focus on reads.
 
 ## Commands
 

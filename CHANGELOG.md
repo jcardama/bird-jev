@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — Unreleased
+
+### Added
+- Analyze individual posts and selected collections with explicit `--jev` consent.
+- Define category, boolean, and rubric-score tasks in JSON, or use relevance and sentiment presets.
+- Enhance post-producing reads while preserving their original data in a versioned analysis envelope.
+- Expose an independent `analyzePosts` library API with checked results, model identity, input hashes, and token-usage receipts.
+
+### Changed
+- Report failed news sub-fetches and bookmark expansions when JEV is enabled instead of analyzing partial collections as successes.
+- Bound provider inputs and request counts; stop on request failures without automatic retries or silent truncation.
+
 ## 0.8.2 — 2026-09-20
 
 ### Changed

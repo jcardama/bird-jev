@@ -28,6 +28,7 @@ Use focused tests while working, then run the full check before submitting. See 
 - Add focused tests for changed behavior.
 - Keep consumer-specific query expansion and scoring in the consumer.
 - Use Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`).
-- JEV capabilities and publication require separately approved work.
+- JEV is an explicit opt-in analysis stage; preserve ordinary read output and keep consumer-specific policies in caller-supplied tasks.
+- JEV provider calls spend money and send selected content externally. Live X calls and publication also require separate authorization; none belong in the offline check.
 
 Installation, rollback, and publication bounds are in [Releasing](docs/releasing.md). Recovery and license facts are in [Provenance](docs/provenance.md).

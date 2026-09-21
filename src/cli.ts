@@ -21,7 +21,13 @@ const ctx = createCliContext(normalizedArgs);
 
 const program = createProgram(ctx);
 
-const { argv, showHelp } = resolveCliInvocation(normalizedArgs, KNOWN_COMMANDS);
+const optionsWithValues = new Set(
+  [program, ...program.commands]
+    .flatMap((command) => command.options)
+    .filter((option) => option.required || option.optional)
+    .flatMap((option) => [option.short, option.long].filter((flag) => flag !== undefined)),
+);
+const { argv, showHelp } = resolveCliInvocation(normalizedArgs, KNOWN_COMMANDS, optionsWithValues);
 
 if (showHelp) {
   program.outputHelp();

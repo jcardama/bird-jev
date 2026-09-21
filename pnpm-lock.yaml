@@ -16,6 +16,9 @@ importers:
       '@steipete/sweet-cookie':
         specifier: 0.1.0
         version: 0.1.0(patch_hash=4ff44e9d3b5770a7b751c7a3470572bdf485763c28ead8055468dd0ae9a6e986)
+      '@typesafe-ai/sdk':
+        specifier: 0.6.0
+        version: 0.6.0
       commander:
         specifier: ^14.0.2
         version: 14.0.2
@@ -491,6 +494,10 @@ packages:
 
   '@types/node@25.0.3':
     resolution: {integrity: sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==}
+
+  '@typesafe-ai/sdk@0.6.0':
+    resolution: {integrity: sha512-IddX+Q0XM+VagOUZFeP7wZjaO4SHMdvnh2zEBdrZZnXedWI3BNK1lKhMx3ayrkFWvVLbVcUHJy6AVZlY+e6Jaw==}
+    engines: {node: '>=20'}
 
   '@vitest/coverage-v8@4.0.16':
     resolution: {integrity: sha512-2rNdjEIsPRzsdu6/9Eq0AYAzYdpP6Bx9cje9tL3FE5XzXRQF1fNU9pe/1yE8fCrS0HD+fBtt6gLPh6LI57tX7A==}
@@ -1070,6 +1077,8 @@ snapshots:
   '@types/node@25.0.3':
     dependencies:
       undici-types: 7.16.0
+
+  '@typesafe-ai/sdk@0.6.0': {}
 
   '@vitest/coverage-v8@4.0.16(vitest@4.0.16(@types/node@25.0.3)(tsx@4.21.0))':
     dependencies:

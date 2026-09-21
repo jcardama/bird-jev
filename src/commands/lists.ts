@@ -2,6 +2,8 @@
 // ABOUTME: Supports listing owned lists, memberships, and list timelines.
 
 import type { Command } from 'commander';
+import { addJevOptions, completeJevCommand, type JevCommandOptions, prepareJevOrExit } from '../cli/jev.js';
+import { ordinaryTweetsJsonData } from '../cli/jev-output.js';
 import { parsePaginationFlags } from '../cli/pagination.js';
 import type { CliContext } from '../cli/shared.js';
 import { extractListId } from '../lib/extract-list-id.js';
@@ -75,81 +77,112 @@ export function registerListsCommand(program: Command, ctx: CliContext): void {
       }
     });
 
-  program
-    .command('list-timeline <list-id-or-url>')
-    .description('Get tweets from a list timeline')
-    .option('-n, --count <number>', 'Number of tweets to fetch', '20')
-    .option('--all', 'Fetch all tweets from list (paged). WARNING: your account might get banned using this flag')
-    .option('--max-pages <number>', 'Fetch N pages (implies --all)')
-    .option('--cursor <string>', 'Resume pagination from a cursor')
-    .option('--json', 'Output as JSON')
-    .option('--json-full', 'Output as JSON with full raw API response in _raw field')
-    .action(
-      async (
-        listIdOrUrl: string,
-        cmdOpts: {
-          count?: string;
-          json?: boolean;
-          jsonFull?: boolean;
-          all?: boolean;
-          maxPages?: string;
-          cursor?: string;
-        },
-      ) => {
-        const opts = program.opts();
-        const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
-        const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
-        const count = Number.parseInt(cmdOpts.count || '20', 10);
+  addJevOptions(
+    program
+      .command('list-timeline <list-id-or-url>')
+      .description('Get tweets from a list timeline')
+      .option('-n, --count <number>', 'Number of tweets to fetch', '20')
+      .option('--all', 'Fetch all tweets from list (paged). WARNING: your account might get banned using this flag')
+      .option('--max-pages <number>', 'Fetch N pages (implies --all)')
+      .option('--cursor <string>', 'Resume pagination from a cursor')
+      .option('--json', 'Output as JSON')
+      .option('--json-full', 'Output as JSON with full raw API response in _raw field'),
+  ).action(
+    async (
+      listIdOrUrl: string,
+      cmdOpts: {
+        count?: string;
+        json?: boolean;
+        jsonFull?: boolean;
+        all?: boolean;
+        maxPages?: string;
+        cursor?: string;
+      } & JevCommandOptions,
+    ) => {
+      const prepared = prepareJevOrExit(ctx, cmdOpts);
+      const opts = program.opts();
+      const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
+      const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
+      const count = Number.parseInt(cmdOpts.count || '20', 10);
 
-        const pagination = parsePaginationFlags(cmdOpts, { maxPagesImpliesPagination: true });
-        if (!pagination.ok) {
-          console.error(`${ctx.p('err')}${pagination.error}`);
-          process.exit(1);
-        }
+      const pagination = parsePaginationFlags(cmdOpts, { maxPagesImpliesPagination: true });
+      if (!pagination.ok) {
+        console.error(`${ctx.p('err')}${pagination.error}`);
+        process.exit(1);
+      }
 
-        const listId = extractListId(listIdOrUrl);
-        if (!listId) {
-          console.error(`${ctx.p('err')}Invalid list ID or URL. Expected numeric ID or https://x.com/i/lists/<id>.`);
-          process.exit(2);
-        }
+      const listId = extractListId(listIdOrUrl);
+      if (!listId) {
+        console.error(`${ctx.p('err')}Invalid list ID or URL. Expected numeric ID or https://x.com/i/lists/<id>.`);
+        process.exit(2);
+      }
 
-        const usePagination = pagination.usePagination;
-        if (!usePagination && (!Number.isFinite(count) || count <= 0)) {
-          console.error(`${ctx.p('err')}Invalid --count. Expected a positive integer.`);
-          process.exit(1);
-        }
+      const usePagination = pagination.usePagination;
+      if (!usePagination && (!Number.isFinite(count) || count <= 0)) {
+        console.error(`${ctx.p('err')}Invalid --count. Expected a positive integer.`);
+        process.exit(1);
+      }
 
-        const { cookies, warnings } = await ctx.resolveCredentialsFromOptions(opts);
+      const { cookies, warnings } = await ctx.resolveCredentialsFromOptions(opts);
 
-        for (const warning of warnings) {
-          console.error(`${ctx.p('warn')}${warning}`);
-        }
+      for (const warning of warnings) {
+        console.error(`${ctx.p('warn')}${warning}`);
+      }
 
-        if (!cookies.authToken || !cookies.ct0) {
-          console.error(`${ctx.p('err')}Missing required credentials`);
-          process.exit(1);
-        }
+      if (!cookies.authToken || !cookies.ct0) {
+        console.error(`${ctx.p('err')}Missing required credentials`);
+        process.exit(1);
+      }
 
-        const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
-        const includeRaw = cmdOpts.jsonFull ?? false;
-        const timelineOptions = { includeRaw };
-        const paginationOptions = { includeRaw, maxPages: pagination.maxPages, cursor: pagination.cursor };
+      const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
+      const includeRaw = cmdOpts.jsonFull ?? false;
+      const timelineOptions = { includeRaw };
+      const paginationOptions = { includeRaw, maxPages: pagination.maxPages, cursor: pagination.cursor };
 
-        const result = usePagination
-          ? await client.getAllListTimeline(listId, paginationOptions)
-          : await client.getListTimeline(listId, count, timelineOptions);
+      const result = usePagination
+        ? await client.getAllListTimeline(listId, paginationOptions)
+        : await client.getListTimeline(listId, count, timelineOptions);
 
-        if (result.success) {
-          const isJson = Boolean(cmdOpts.json || cmdOpts.jsonFull);
-          ctx.printTweetsResult(result, {
-            json: isJson,
-            usePagination,
-            emptyMessage: 'No tweets found in this list.',
-          });
-        } else {
-          console.error(`${ctx.p('err')}Failed to fetch list timeline: ${result.error}`);
-          process.exit(1);
-        }
-      },
-    );
+      const isJson = Boolean(cmdOpts.json || cmdOpts.jsonFull);
+      const tweets = result.tweets ?? [];
+
+      if (prepared.enabled) {
+        await completeJevCommand({
+          ctx,
+          prepared,
+          posts: tweets,
+          collection: {
+            source: 'list-timeline',
+            status: result.success ? 'ok' : 'failed',
+            nextCursor: result.nextCursor,
+          },
+          json: isJson,
+          data: ordinaryTweetsJsonData(tweets, result.nextCursor, usePagination),
+          printOrdinary: () => {
+            ctx.printTweetsResult(
+              { tweets, nextCursor: result.nextCursor },
+              {
+                json: false,
+                usePagination,
+                emptyMessage: 'No tweets found in this list.',
+              },
+            );
+          },
+          collectionError: result.success ? undefined : `Failed to fetch list timeline: ${result.error}`,
+        });
+        return;
+      }
+
+      if (result.success) {
+        ctx.printTweetsResult(result, {
+          json: isJson,
+          usePagination,
+          emptyMessage: 'No tweets found in this list.',
+        });
+      } else {
+        console.error(`${ctx.p('err')}Failed to fetch list timeline: ${result.error}`);
+        process.exit(1);
+      }
+    },
+  );
 }

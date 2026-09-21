@@ -6,6 +6,8 @@ import JSON5 from 'json5';
 import kleur from 'kleur';
 import { type CookieSource, resolveCredentials } from '../lib/cookies.js';
 import { extractTweetId } from '../lib/extract-tweet-id.js';
+import { analyzePosts } from '../lib/jev.js';
+import type { AnalyzePosts } from '../lib/jev-types.js';
 import {
   hyperlink,
   labelPrefix,
@@ -64,6 +66,7 @@ export type CliContext = {
     },
   ) => void;
   extractTweetId: (tweetIdOrUrl: string) => string;
+  analyzePosts: AnalyzePosts;
 };
 
 const COOKIE_SOURCES: CookieSource[] = ['safari', 'chrome', 'firefox'];
@@ -431,5 +434,6 @@ export function createCliContext(normalizedArgs: string[], env: NodeJS.ProcessEn
     printTweets,
     printTweetsResult,
     extractTweetId,
+    analyzePosts,
   };
 }

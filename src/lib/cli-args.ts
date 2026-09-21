@@ -14,20 +14,30 @@ export function looksLikeTweetInput(value: string): boolean {
   return TWEET_URL_REGEX.test(trimmed) || TWEET_ID_REGEX.test(trimmed);
 }
 
-export function resolveCliInvocation(rawArgs: string[], knownCommands: Set<string>): CliInvocation {
+export function resolveCliInvocation(
+  rawArgs: string[],
+  knownCommands: Set<string>,
+  optionsWithValues: ReadonlySet<string> = new Set(),
+): CliInvocation {
   if (rawArgs.length === 0) {
     return { argv: null, showHelp: true };
   }
 
-  const hasKnownCommand = rawArgs.some((arg) => knownCommands.has(arg));
-
-  if (!hasKnownCommand) {
-    const tweetArgIndex = rawArgs.findIndex(looksLikeTweetInput);
-    if (tweetArgIndex >= 0) {
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+    if (arg.startsWith('-') && arg !== '--') {
+      if (optionsWithValues.has(arg)) {
+        index += 1;
+      }
+      continue;
+    }
+    const operand = arg === '--' ? rawArgs[index + 1] : arg;
+    if (operand && !knownCommands.has(operand) && looksLikeTweetInput(operand)) {
       const rewrittenArgs = [...rawArgs];
-      rewrittenArgs.splice(tweetArgIndex, 0, 'read');
+      rewrittenArgs.splice(index, 0, 'read');
       return { argv: ['node', 'bird', ...rewrittenArgs], showHelp: false };
     }
+    break;
   }
 
   return { argv: null, showHelp: false };
