@@ -112,8 +112,8 @@ describe('search cursor recovery', () => {
 
   it.each(['popular', 'top', '', null, 1])('rejects invalid modes from JavaScript callers: %s', async (mode) => {
     for (const [method, args] of [
-      [client.search, ['q', 1, { mode }]],
-      [client.getAllSearchResults, ['q', { mode }]],
+      [client.search.bind(client), ['q', 1, { mode }]],
+      [client.getAllSearchResults.bind(client), ['q', { mode }]],
     ] as const) {
       await expect(Reflect.apply(method, client, args)).resolves.toEqual({
         success: false,
