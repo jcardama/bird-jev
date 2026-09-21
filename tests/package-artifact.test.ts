@@ -405,17 +405,19 @@ describe('receipt identity', () => {
     async (failure) => {
       const dir = mkdtempSync(join(tmpdir(), 'bird-package-reuse-'));
       fixtures.push(dir);
-      const tarball = join(dir, 'bird-jev-0.10.0.tgz');
+      const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+      const filename = `${pkg.name}-${pkg.version}.tgz`;
+      const tarball = join(dir, filename);
       writeFileSync(tarball, 'must-not-be-opened-as-an-archive');
       const digest = await digestFile(tarball);
       const git = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 5000 });
       expect(git.status).toBe(0);
       const receipt = buildReceipt({
-        pkg: validPkg(),
+        pkg,
         source: { gitSha: failure === 'source' ? 'f'.repeat(40) : git.stdout.trim(), dirty: true },
         toolchain: { node: process.version, npm: 'test' },
         artifact: {
-          filename: 'bird-jev-0.10.0.tgz',
+          filename,
           ...digest,
           sha256: failure === 'digest' ? '0'.repeat(64) : digest.sha256,
         },
@@ -431,7 +433,7 @@ describe('receipt identity', () => {
         pack: 'created',
       });
       if (failure !== 'missing') {
-        await writeReceipt(receiptPathFor(tarball, validPkg()), receipt);
+        await writeReceipt(receiptPathFor(tarball, pkg), receipt);
       }
       const output = join(dir, 'output');
       mkdirSync(join(dir, 'home', 'tmp'), { recursive: true });
@@ -443,10 +445,14 @@ describe('receipt identity', () => {
       });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(
-        failure === 'missing' ? 'bird-jev-0.10.0.receipt.json' : failure === 'digest' ? 'sha256' : 'source commit',
+        failure === 'missing'
+          ? `${pkg.name}-${pkg.version}.receipt.json`
+          : failure === 'digest'
+            ? 'sha256'
+            : 'source commit',
       );
       expect(result.stdout).not.toMatch(ARTIFACT_EXECUTION);
-      expect(existsSync(receiptPathFor(join(output, 'bird-jev-0.10.0.tgz'), validPkg()))).toBe(false);
+      expect(existsSync(receiptPathFor(join(output, filename), pkg))).toBe(false);
     },
   );
 

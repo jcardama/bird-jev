@@ -55,6 +55,7 @@ An authorized npm package owner must configure a GitHub Actions trusted publishe
 | Repository | `bird-jev` |
 | Workflow filename | `publish.yml` |
 | GitHub environment | Leave empty; this workflow does not use an environment |
+| Allow npm publish | Enable; the workflow publishes directly, not through `npm stage publish` |
 
 This is an account-security change, separate from merging the workflow. Do not create a long-lived npm token or a bypass-2FA token as a substitute. No `NPM_TOKEN` or `NODE_AUTH_TOKEN` secret is required. Trusted publishing requires GitHub-hosted runners, Node ≥22.14.0, and npm ≥11.5.1; the workflow uses pinned compatible tools. The package repository URL must stay `git+https://github.com/jcardama/bird-jev.git` for provenance to match. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
