@@ -1,0 +1,609 @@
+name: Publish npm package
+
+on:
+  release:
+    types:
+      - published
+
+concurrency:
+  group: npm-publish-bird-jev
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify release artifact
+    if: github.repository == 'jcardama/bird-jev' && github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_SHA: ${{ github.sha }}
+    outputs:
+      sha: ${{ steps.artifact.outputs.sha }}
+      filename: ${{ steps.artifact.outputs.filename }}
+      version: ${{ steps.artifact.outputs.version }}
+      artifactDigest: ${{ steps.artifact.outputs.artifactDigest }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.11.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Pin npm
+        run: npm install -g npm@11.16.0 --ignore-scripts
+
+      - name: Verify toolchain
+        shell: node {0}
+        run: |
+          const { spawnSync } = require('node:child_process');
+          const [major, minor] = process.versions.node.split('.').map(Number);
+          if (major !== 22 || minor < 14) {
+            throw new Error('Verification requires Node 22.14+, found ' + process.version);
+          }
+          const npm = spawnSync('npm', ['--version'], { encoding: 'utf8', shell: false });
+          if (npm.status !== 0 || npm.stdout.trim() !== '11.16.0') {
+            throw new Error('Verification requires npm 11.16.0, found ' + npm.stdout);
+          }
+          const pnpm = spawnSync('pnpm', ['--version'], { encoding: 'utf8', shell: false });
+          if (pnpm.status !== 0 || pnpm.stdout.trim() !== '10.11.0') {
+            throw new Error('Verification requires pnpm 10.11.0, found ' + pnpm.stdout);
+          }
+
+      - name: Validate release identity
+        run: node scripts/package/release.js identity
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Check build, offline tests, and lint
+        env:
+          BIRD_LIVE: '0'
+        run: pnpm run check
+
+      - name: Set artifact directory
+        run: echo "ARTIFACT_DIR=$RUNNER_TEMP/bird-jev-artifact" >> "$GITHUB_ENV"
+
+      - name: Verify npm artifact
+        run: pnpm run check:package --output "$ARTIFACT_DIR"
+
+      - name: Validate release artifact
+        id: artifact
+        run: node scripts/package/release.js artifact
+
+      - name: Upload verified artifact
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bird-jev-verified-package
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: error
+          include-hidden-files: false
+
+  publish:
+    name: Publish to npm
+    needs: verify
+    if: github.repository == 'jcardama/bird-jev' && github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_SHA: ${{ github.sha }}
+      VERIFY_SHA: ${{ needs.verify.outputs.sha }}
+      VERIFY_FILENAME: ${{ needs.verify.outputs.filename }}
+      VERIFY_VERSION: ${{ needs.verify.outputs.version }}
+      VERIFY_ARTIFACT_DIGEST: ${{ needs.verify.outputs.artifactDigest }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Pin npm
+        run: npm install -g npm@11.16.0 --ignore-scripts
+
+      - name: Set artifact directory
+        run: echo "ARTIFACT_DIR=$RUNNER_TEMP/verified-package" >> "$GITHUB_ENV"
+
+      - name: Download verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: ${{ env.ARTIFACT_DIR }}
+          merge-multiple: true
+
+      - name: Publish verified package
+        shell: node {0}
+        run: |
+          'use strict';
+
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const os = require('node:os');
+          const crypto = require('node:crypto');
+          const { spawnSync } = require('node:child_process');
+
+          const PACKAGE_NAME = 'bird-jev';
+          const REGISTRY = 'https://registry.npmjs.org/';
+          const BIN_PATH = 'dist/cli.js';
+          const COMMIT_SHA = /^[0-9a-f]{40}$/;
+          const DIGEST_SHA256 = /^[0-9a-f]{64}$/;
+          const STABLE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+          const REGISTRY_TIMEOUT_MS = 15000;
+          const VISIBILITY_ATTEMPTS = 8;
+          const VISIBILITY_DELAY_MS = 3000;
+          const RETAINED_ENV = [
+            'PATH',
+            'LANG',
+            'LC_ALL',
+            'LC_CTYPE',
+            'LC_MESSAGES',
+            'TZ',
+            'TERM',
+            'CI',
+            'GITHUB_ACTIONS',
+            'GITHUB_ACTION',
+            'GITHUB_EVENT_NAME',
+            'GITHUB_EVENT_PATH',
+            'GITHUB_REPOSITORY',
+            'GITHUB_REPOSITORY_ID',
+            'GITHUB_REPOSITORY_OWNER_ID',
+            'GITHUB_SERVER_URL',
+            'GITHUB_RUN_ID',
+            'GITHUB_RUN_ATTEMPT',
+            'GITHUB_SHA',
+            'GITHUB_REF',
+            'GITHUB_REF_NAME',
+            'GITHUB_WORKFLOW',
+            'GITHUB_WORKFLOW_REF',
+            'GITHUB_WORKFLOW_SHA',
+            'GITHUB_JOB',
+            'RUNNER_OS',
+            'RUNNER_ARCH',
+            'RUNNER_ENVIRONMENT',
+            'RUNNER_TEMP',
+            'RUNNER_TOOL_CACHE',
+            'ACTIONS_ID_TOKEN_REQUEST_URL',
+            'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
+            'ACTIONS_RUNTIME_TOKEN',
+            'ACTIONS_RUNTIME_URL',
+            'ACTIONS_RESULTS_URL',
+          ];
+
+          void main().then(
+            () => {
+              process.exit(process.exitCode == null ? 0 : process.exitCode);
+            },
+            (error) => {
+              const message = error instanceof Error ? error.stack || error.message : String(error);
+              console.error(message);
+              writeSummary([
+                '## npm publication',
+                '',
+                '- outcome: failed',
+                '- error: ' + firstLine(error instanceof Error ? error.message : String(error)),
+              ]);
+              process.exit(1);
+            },
+          );
+
+          async function main() {
+            assertPublisherToolchain();
+            const ctx = readContext();
+            const files = readArtifactFiles(ctx);
+            const digest = digestBuffer(files.tarballBytes);
+            assertReceipt(files.receipt, digest, ctx);
+            if (digest.sha256 !== ctx.artifactDigest) {
+              throw new Error('Independent artifact digest does not match the verification output');
+            }
+
+            const versionUrl = REGISTRY + PACKAGE_NAME + '/' + encodeURIComponent(ctx.version);
+            const packumentUrl = REGISTRY + PACKAGE_NAME;
+            const existing = await registryGet(versionUrl);
+            if (existing.status !== 404) {
+              assertPublishedMetadata(existing.body, digest, ctx.version);
+              writeSummary([
+                '## npm publication',
+                '',
+                '- outcome: already-published',
+                '- package: ' + PACKAGE_NAME + '@' + ctx.version,
+                '- sha: ' + ctx.sha,
+                '- filename: ' + ctx.filename,
+                '- sha256: ' + digest.sha256,
+              ]);
+              return;
+            }
+
+            const packument = await registryGet(packumentUrl);
+            if (packument.status === 404) {
+              throw new Error('Package metadata is absent at ' + packumentUrl);
+            }
+            const latest = packument.body['dist-tags'] && packument.body['dist-tags'].latest;
+            if (typeof latest !== 'string') {
+              throw new Error('Registry packument does not include a stable latest tag');
+            }
+            if (!isNewerStableVersion(ctx.version, latest)) {
+              throw new Error('Refusing to publish ' + ctx.version + ' which is not newer than latest ' + latest);
+            }
+
+            publishTarball(files.tarballPath);
+            await waitForVisibility(versionUrl, digest, ctx.version);
+            writeSummary([
+              '## npm publication',
+              '',
+              '- outcome: published',
+              '- package: ' + PACKAGE_NAME + '@' + ctx.version,
+              '- tag: ' + ctx.tag,
+              '- sha: ' + ctx.sha,
+              '- filename: ' + ctx.filename,
+              '- sha256: ' + digest.sha256,
+              '- integrity: ' + digest.integrity,
+            ]);
+          }
+
+          function assertPublisherToolchain() {
+            const [major] = process.versions.node.split('.').map(Number);
+            if (major !== 24) {
+              throw new Error('Publisher requires Node 24, found ' + process.version);
+            }
+            const npm = spawnSync('npm', ['--version'], { encoding: 'utf8', shell: false, timeout: 15000 });
+            if (npm.error) {
+              throw npm.error;
+            }
+            if (npm.status !== 0 || npm.stdout.trim() !== '11.16.0') {
+              throw new Error('Publisher requires npm 11.16.0, found ' + npm.stdout);
+            }
+          }
+
+          function readContext() {
+            const tag = requiredEnv('RELEASE_TAG');
+            const version = requiredEnv('VERIFY_VERSION');
+            if ('v' + version !== tag) {
+              throw new Error('VERIFY_VERSION ' + version + ' does not match RELEASE_TAG ' + tag);
+            }
+            parseStableVersion(version);
+            const sha = requiredEnv('RELEASE_SHA');
+            const verifySha = requiredEnv('VERIFY_SHA');
+            if (!COMMIT_SHA.test(sha) || !COMMIT_SHA.test(verifySha) || sha !== verifySha) {
+              throw new Error('Release SHA does not match the verification output');
+            }
+            const githubSha = process.env.GITHUB_SHA;
+            if (githubSha && githubSha !== sha) {
+              throw new Error('GITHUB_SHA does not match the release SHA');
+            }
+            const filename = requiredEnv('VERIFY_FILENAME');
+            const expectedFilename = PACKAGE_NAME + '-' + version + '.tgz';
+            if (filename !== expectedFilename) {
+              throw new Error('VERIFY_FILENAME ' + filename + ' is not ' + expectedFilename);
+            }
+            const artifactDigest = requiredEnv('VERIFY_ARTIFACT_DIGEST');
+            if (!DIGEST_SHA256.test(artifactDigest)) {
+              throw new Error('VERIFY_ARTIFACT_DIGEST is not a SHA-256 hex digest');
+            }
+            return {
+              tag: tag,
+              version: version,
+              sha: sha,
+              filename: filename,
+              artifactDigest: artifactDigest,
+              artifactDir: requiredEnv('ARTIFACT_DIR'),
+            };
+          }
+
+          function readArtifactFiles(ctx) {
+            const receiptName = PACKAGE_NAME + '-' + ctx.version + '.receipt.json';
+            const entries = fs.readdirSync(ctx.artifactDir, { withFileTypes: true });
+            const names = [];
+            for (let i = 0; i < entries.length; i += 1) {
+              const entry = entries[i];
+              const full = path.join(ctx.artifactDir, entry.name);
+              const st = fs.lstatSync(full);
+              if (st.isSymbolicLink() || entry.isSymbolicLink()) {
+                throw new Error('Artifact directory contains a symlink: ' + entry.name);
+              }
+              if (!st.isFile()) {
+                throw new Error('Artifact directory contains a non-file: ' + entry.name);
+              }
+              names.push(entry.name);
+            }
+            names.sort();
+            const expected = [ctx.filename, receiptName].sort();
+            if (names.length !== 2 || names[0] !== expected[0] || names[1] !== expected[1]) {
+              throw new Error('Artifact directory entries [' + names.join(', ') + '] are not [' + expected.join(', ') + ']');
+            }
+            const tarballPath = path.join(ctx.artifactDir, ctx.filename);
+            const receiptPath = path.join(ctx.artifactDir, receiptName);
+            const tarballBytes = fs.readFileSync(tarballPath);
+            if (!Buffer.isBuffer(tarballBytes) || tarballBytes.length === 0) {
+              throw new Error('Verified tarball is empty');
+            }
+            let receipt;
+            try {
+              receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+            } catch (error) {
+              throw new Error('Release receipt is not valid JSON');
+            }
+            return { tarballPath: tarballPath, tarballBytes: tarballBytes, receipt: receipt };
+          }
+
+          function assertReceipt(receipt, digest, ctx) {
+            if (receipt.schemaVersion !== 1) {
+              throw new Error('Release receipt schemaVersion is not 1');
+            }
+            if (!receipt.source || receipt.source.dirty !== false) {
+              throw new Error('Release receipt must record a clean source tree');
+            }
+            if (receipt.source.gitSha !== ctx.sha) {
+              throw new Error('Release receipt SHA does not match the event and verification output');
+            }
+            if (!receipt.package || receipt.package.name !== PACKAGE_NAME || receipt.package.version !== ctx.version) {
+              throw new Error('Release receipt package identity does not match');
+            }
+            if (!receipt.artifact || receipt.artifact.filename !== ctx.filename) {
+              throw new Error('Release receipt filename does not match');
+            }
+            if (receipt.artifact.bytes !== digest.bytes) {
+              throw new Error('Tarball size does not match the receipt');
+            }
+            if (receipt.artifact.sha256 !== digest.sha256) {
+              throw new Error('Tarball sha256 does not match the receipt');
+            }
+            if (receipt.artifact.sha512 !== digest.sha512) {
+              throw new Error('Tarball sha512 does not match the receipt');
+            }
+            if (receipt.artifact.integrity !== digest.integrity) {
+              throw new Error('Tarball integrity does not match the receipt');
+            }
+            for (const stage of ['policy', 'install', 'cli', 'esm', 'typescript', 'analyze']) {
+              if (!receipt.verification || receipt.verification[stage] !== 'pass') {
+                throw new Error('Release receipt has no passing ' + stage + ' verification');
+              }
+            }
+            if (receipt.verification.pack !== 'created') {
+              throw new Error('Release receipt must identify the original pack operation');
+            }
+          }
+
+          function digestBuffer(buf) {
+            const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+            const sha512 = crypto.createHash('sha512').update(buf).digest();
+            const sha1 = crypto.createHash('sha1').update(buf).digest('hex');
+            return {
+              bytes: buf.length,
+              sha256: sha256,
+              sha512: sha512.toString('hex'),
+              sha1: sha1,
+              integrity: 'sha512-' + sha512.toString('base64'),
+            };
+          }
+
+          async function registryGet(url) {
+            let response;
+            try {
+              response = await fetch(url, {
+                method: 'GET',
+                redirect: 'error',
+                signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
+                headers: {
+                  Accept: 'application/json',
+                  'User-Agent': 'bird-jev-github-release-publisher',
+                },
+              });
+            } catch (error) {
+              const name = error && error.name;
+              if (name === 'AbortError' || name === 'TimeoutError') {
+                throw new Error('Registry request timed out: ' + url);
+              }
+              throw new Error(
+                'Registry request failed: ' + url + ': ' + (error instanceof Error ? error.message : String(error)),
+              );
+            }
+            if (response.status === 404) {
+              return { status: 404, body: null };
+            }
+            if (response.status === 401 || response.status === 403) {
+              throw new Error('Registry authentication error ' + response.status + ' for ' + url);
+            }
+            if (response.status < 200 || response.status >= 300) {
+              throw new Error('Registry server error ' + response.status + ' for ' + url);
+            }
+            let text;
+            try {
+              text = await response.text();
+            } catch (error) {
+              throw new Error(
+                'Registry response body failed: ' + url + ': ' + (error instanceof Error ? error.message : String(error)),
+              );
+            }
+            let body;
+            try {
+              body = JSON.parse(text);
+            } catch (error) {
+              throw new Error('Malformed registry JSON for ' + url);
+            }
+            if (!body || typeof body !== 'object') {
+              throw new Error('Malformed registry JSON for ' + url);
+            }
+            return { status: response.status, body: body };
+          }
+
+          function assertPublishedMetadata(body, digest, version) {
+            if (!body || typeof body !== 'object') {
+              throw new Error('Registry version metadata is malformed');
+            }
+            if (body.name !== PACKAGE_NAME) {
+              throw new Error('Registry package name ' + body.name + ' is not ' + PACKAGE_NAME);
+            }
+            if (body.version !== version) {
+              throw new Error('Registry version ' + body.version + ' is not ' + version);
+            }
+            if (!body.dist || body.dist.integrity !== digest.integrity) {
+              throw new Error('Registry integrity does not match the verified artifact');
+            }
+            if (body.dist.shasum !== digest.sha1) {
+              throw new Error('Registry sha1 shasum does not match the verified artifact');
+            }
+            const bin = body.bin;
+            if (!bin || typeof bin !== 'object' || Array.isArray(bin) || bin.bird !== BIN_PATH) {
+              throw new Error('Registry bin metadata does not match bird -> dist/cli.js');
+            }
+            if (Object.keys(bin).length !== 1) {
+              throw new Error('Registry bin metadata has unexpected executables');
+            }
+          }
+
+          function publishTarball(tarballPath) {
+            const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bird-jev-publish-'));
+            fs.mkdirSync(path.join(home, 'tmp'), { recursive: true });
+            fs.mkdirSync(path.join(home, 'cache'), { recursive: true });
+            fs.mkdirSync(path.join(home, 'prefix'), { recursive: true });
+            const npmrc = [
+              'registry=https://registry.npmjs.org/',
+              'access=public',
+              'audit=false',
+              'fund=false',
+              'update-notifier=false',
+              '',
+            ].join('\n');
+            fs.writeFileSync(path.join(home, '.npmrc'), npmrc, { mode: 0o600 });
+            fs.writeFileSync(path.join(home, 'npmrc-global'), npmrc, { mode: 0o600 });
+            const env = isolatedEnv(home);
+            const args = [
+              'publish',
+              tarballPath,
+              '--ignore-scripts',
+              '--access',
+              'public',
+              '--tag',
+              'latest',
+              '--registry',
+              'https://registry.npmjs.org/',
+            ];
+            const result = spawnSync('npm', args, {
+              cwd: home,
+              env: env,
+              encoding: 'utf8',
+              timeout: 120000,
+              shell: false,
+            });
+            if (result.error) {
+              throw new Error('npm publish failed to start: ' + result.error.message);
+            }
+            if (result.status !== 0) {
+              throw new Error(
+                'npm publish failed (' +
+                  (result.timedOut ? 'timed out' : 'exit ' + result.status) +
+                  ')\n' +
+                  (result.stdout || '') +
+                  (result.stderr || ''),
+              );
+            }
+          }
+
+          function isolatedEnv(home) {
+            const env = {};
+            for (let i = 0; i < RETAINED_ENV.length; i += 1) {
+              const key = RETAINED_ENV[i];
+              const value = process.env[key];
+              if (value !== undefined) {
+                env[key] = value;
+              }
+            }
+            env.HOME = home;
+            env.TMPDIR = path.join(home, 'tmp');
+            env.npm_config_userconfig = path.join(home, '.npmrc');
+            env.npm_config_globalconfig = path.join(home, 'npmrc-global');
+            env.npm_config_cache = path.join(home, 'cache');
+            env.npm_config_prefix = path.join(home, 'prefix');
+            env.npm_config_registry = 'https://registry.npmjs.org/';
+            env.npm_config_update_notifier = 'false';
+            env.npm_config_fund = 'false';
+            env.npm_config_audit = 'false';
+            env.npm_config_loglevel = 'error';
+            env.NO_UPDATE_NOTIFIER = '1';
+            return env;
+          }
+
+          async function waitForVisibility(url, digest, version) {
+            for (let attempt = 1; attempt <= VISIBILITY_ATTEMPTS; attempt += 1) {
+              const seen = await registryGet(url);
+              if (seen.status === 404) {
+                if (attempt === VISIBILITY_ATTEMPTS) {
+                  throw new Error(
+                    'Published package is not visible on the registry after ' + VISIBILITY_ATTEMPTS + ' attempts',
+                  );
+                }
+                await delay(VISIBILITY_DELAY_MS);
+                continue;
+              }
+              assertPublishedMetadata(seen.body, digest, version);
+              return;
+            }
+          }
+
+          function delay(ms) {
+            return new Promise((resolve) => {
+              setTimeout(resolve, ms);
+            });
+          }
+
+          function parseStableVersion(version) {
+            const match = typeof version === 'string' ? STABLE_VERSION.exec(version) : null;
+            if (!match) {
+              throw new Error('Unsupported version format: ' + version);
+            }
+            return [BigInt(match[1]), BigInt(match[2]), BigInt(match[3])];
+          }
+
+          function isNewerStableVersion(candidate, latest) {
+            const candidateParts = parseStableVersion(candidate);
+            const latestParts = parseStableVersion(latest);
+            for (let i = 0; i < candidateParts.length; i += 1) {
+              if (candidateParts[i] !== latestParts[i]) {
+                return candidateParts[i] > latestParts[i];
+              }
+            }
+            return false;
+          }
+
+          function requiredEnv(name) {
+            const value = process.env[name];
+            if (typeof value !== 'string' || value.trim() === '') {
+              throw new Error(name + ' is not set');
+            }
+            return value;
+          }
+
+          function firstLine(text) {
+            return String(text).split(/\r?\n/)[0];
+          }
+
+          function writeSummary(lines) {
+            const file = process.env.GITHUB_STEP_SUMMARY;
+            if (typeof file !== 'string' || file === '') {
+              return;
+            }
+            try {
+              fs.appendFileSync(file, lines.join('\n') + '\n');
+            } catch (error) {
+              console.error('Failed to write job summary: ' + (error instanceof Error ? error.message : String(error)));
+            }
+          }

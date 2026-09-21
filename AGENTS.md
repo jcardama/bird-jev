@@ -31,6 +31,7 @@ Run the full check before handoff. Do not pipe verification output through trunc
 - Do not run `build:binary` with credentials in the environment: it embeds `BIRD_*` variables. `build` includes this binary step; use `build:dist` for the distribution alone.
 - `graphql:update` contacts X and rewrites query IDs. It is not an offline check.
 - Do not print credentials or add them to logs, fixtures, or commits. Publication and runtime installation require separate authorization.
+- `publish.yml` verifies stable GitHub releases before publishing the exact tested npm artifact. Keep OIDC permission confined to its no-checkout publishing job; never add a saved npm token or run package lifecycle scripts there. Read `docs/releasing.md` before changing this workflow.
 
 ## Layout
 
