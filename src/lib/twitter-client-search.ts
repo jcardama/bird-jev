@@ -6,6 +6,8 @@ import { extractCursorFromInstructions, parseTweetsFromInstructions } from './tw
 
 const RAW_QUERY_MISSING_REGEX = /must be defined/i;
 
+export type SearchMode = 'Top' | 'Latest';
+
 /** Options for search methods */
 export interface SearchFetchOptions {
   /** Include raw GraphQL response in `_raw` field */
@@ -14,6 +16,7 @@ export interface SearchFetchOptions {
 
 /** Options for paged search methods */
 export interface SearchPaginationOptions extends SearchFetchOptions {
+  mode?: SearchMode;
   maxPages?: number;
   /** Starting cursor for pagination (resume from previous fetch) */
   cursor?: string;
@@ -73,6 +76,10 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
       limit: number,
       options: SearchPaginationOptions = {},
     ): Promise<SearchResult> {
+      const { includeRaw = false, maxPages, mode = 'Latest' } = options;
+      if (mode !== 'Top' && mode !== 'Latest') {
+        return { success: false, error: 'Invalid search mode. Expected "Top" or "Latest".' };
+      }
       const features = buildSearchFeatures();
       const pageSize = 20;
       const seen = new Set<string>();
@@ -85,7 +92,6 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
       if (cursor) {
         visitedCursors.add(cursor);
       }
-      const { includeRaw = false, maxPages } = options;
 
       const fetchPage = async (pageCount: number, pageCursor?: string) => {
         let lastError: string | undefined;
@@ -97,7 +103,7 @@ export function withSearch<TBase extends AbstractConstructor<TwitterClientBase>>
             rawQuery: query,
             count: pageCount,
             querySource: 'typed_query',
-            product: 'Latest',
+            product: mode,
             ...(pageCursor ? { cursor: pageCursor } : {}),
           };
 

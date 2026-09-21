@@ -85,7 +85,7 @@ describe('search command', () => {
 
     try {
       await program.parseAsync(['node', 'bird', 'search', 'cats', '--all', '--json']);
-      expect(getAllSpy).toHaveBeenCalledWith('cats', expect.objectContaining({ includeRaw: false }));
+      expect(getAllSpy).toHaveBeenCalledWith('cats', expect.objectContaining({ includeRaw: false, mode: 'Latest' }));
       expect(searchSpy).not.toHaveBeenCalled();
       expect(mockContext.printTweetsResult).toHaveBeenCalledWith(expect.objectContaining({ tweets: [] }), {
         json: true,
@@ -98,13 +98,67 @@ describe('search command', () => {
     }
   });
 
-  it('honors --count when --cursor is set', async () => {
+  it.each([false, true])('passes Top to the selected client method (all=%s)', async (all) => {
+    registerSearchCommands(program, mockContext as CliContext);
+    const searchSpy = vi.spyOn(TwitterClient.prototype, 'search').mockResolvedValue({ success: true, tweets: [] });
+    const allSpy = vi
+      .spyOn(TwitterClient.prototype, 'getAllSearchResults')
+      .mockResolvedValue({ success: true, tweets: [] });
+    try {
+      await program.parseAsync(['node', 'bird', 'search', 'q', '--mode', 'top', ...(all ? ['--all'] : [])]);
+      const selected = all ? allSpy : searchSpy;
+      const options = expect.objectContaining({ mode: 'Top' });
+      const expectedArgs = all ? ['q', options] : ['q', 10, options];
+      expect(selected).toHaveBeenCalledTimes(1);
+      expect(selected.mock.calls[0]).toEqual(expectedArgs);
+    } finally {
+      searchSpy.mockRestore();
+      allSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    { flags: [] },
+    { flags: ['--mode', 'latest'] },
+  ])('uses Latest for a finite search with flags $flags', async ({ flags }) => {
+    registerSearchCommands(program, mockContext as CliContext);
+    const searchSpy = vi.spyOn(TwitterClient.prototype, 'search').mockResolvedValue({ success: true, tweets: [] });
+    try {
+      await program.parseAsync(['node', 'bird', 'search', 'q', ...flags]);
+      expect(searchSpy).toHaveBeenCalledWith('q', 10, expect.objectContaining({ mode: 'Latest' }));
+    } finally {
+      searchSpy.mockRestore();
+    }
+  });
+
+  it('rejects an unsupported mode before resolving credentials', async () => {
+    const credentials = vi.fn();
+    mockContext.resolveCredentialsFromOptions = credentials;
+    program.exitOverride().configureOutput({ writeErr: () => undefined });
+    registerSearchCommands(program, mockContext as CliContext);
+    const action = program.parseAsync(['node', 'bird', 'search', 'q', '--mode', 'popular']);
+    await expect(action).rejects.toThrow('Allowed choices');
+    expect(credentials).not.toHaveBeenCalled();
+  });
+
+  it('honors --count and Top mode when --cursor is set', async () => {
     registerSearchCommands(program, mockContext as CliContext);
     const searchSpy = vi.spyOn(TwitterClient.prototype, 'search').mockResolvedValue({ success: true, tweets: [] });
 
     try {
-      await program.parseAsync(['node', 'bird', 'search', 'cats', '--cursor', 'cursor-1', '--count', '20']);
-      expect(searchSpy).toHaveBeenCalledWith('cats', 20, expect.objectContaining({ cursor: 'cursor-1' }));
+      await program.parseAsync([
+        'node',
+        'bird',
+        'search',
+        'cats',
+        '--cursor',
+        'cursor-1',
+        '--count',
+        '20',
+        '--mode',
+        'top',
+      ]);
+      expect(searchSpy).toHaveBeenCalledWith('cats', 20, expect.objectContaining({ cursor: 'cursor-1', mode: 'Top' }));
       expect(mockContext.printTweetsResult).toHaveBeenCalledWith(expect.objectContaining({ tweets: [] }), {
         json: false,
         usePagination: true,

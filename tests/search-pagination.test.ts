@@ -86,8 +86,41 @@ describe('search cursor recovery', () => {
     expect(result.nextCursor).toBe('c4');
     expect(fetchMock).toHaveBeenCalledTimes(5);
     for (const [url] of fetchMock.mock.calls) {
-      expect(JSON.parse(new URL(url).searchParams.get('variables') ?? '{}').rawQuery).toBe('same query');
+      expect(JSON.parse(new URL(url).searchParams.get('variables') ?? '{}')).toMatchObject({
+        rawQuery: 'same query',
+        product: 'Latest',
+      });
     }
+  });
+
+  it.each([false, true])('keeps Top ranking across pages (all=%s)', async (all) => {
+    fetchMock.mockResolvedValueOnce(page(['1'], 'next')).mockResolvedValueOnce(page(['2']));
+    const result = all
+      ? await client.getAllSearchResults('q', { mode: 'Top', cursor: 'start' })
+      : await client.search('q', 2, { mode: 'Top', cursor: 'start' });
+    expect(result.success).toBe(true);
+    expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1', '2']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [i, [url]] of fetchMock.mock.calls.entries()) {
+      expect(JSON.parse(new URL(url).searchParams.get('variables') ?? '{}')).toMatchObject({
+        rawQuery: 'q',
+        product: 'Top',
+        cursor: i === 0 ? 'start' : 'next',
+      });
+    }
+  });
+
+  it.each(['popular', 'top', '', null, 1])('rejects invalid modes from JavaScript callers: %s', async (mode) => {
+    for (const [method, args] of [
+      [client.search, ['q', 1, { mode }]],
+      [client.getAllSearchResults, ['q', { mode }]],
+    ] as const) {
+      await expect(Reflect.apply(method, client, args)).resolves.toEqual({
+        success: false,
+        error: 'Invalid search mode. Expected "Top" or "Latest".',
+      });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('crosses duplicate-only and empty intermediary pages with advancing cursors', async () => {
