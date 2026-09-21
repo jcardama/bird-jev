@@ -100,6 +100,16 @@ With three levels the score ranges from 0 to 2 and can be fractional. It is not 
 
 Task identifiers start with an ASCII letter and contain only letters, digits, underscores, or hyphens, up to 64 characters. The names `constructor`, `prototype`, and `__proto__` are reserved. Unknown fields are rejected. A specification supports at most 16 normalized tasks and 64 KiB of UTF-8 JSON. Do not combine `--jev-spec` with preset flags or `--jev-scope`; each custom task already declares its scope.
 
+## Analyze supplied posts
+
+```sh
+bird analyze --input posts.json --jev --jev-spec analysis.json --json
+```
+
+`analyze` reuses the same analysis engine without resolving X credentials, collecting posts, or following links. It requires explicit `--jev` consent and either a task file or presets. `posts.json` must be a strict JSON array, at most 4 MiB. Each post requires a nonblank string `id` and string `text`. Optional `authorId`, `createdAt`, `conversationId`, and `inReplyToStatusId` must be strings. Optional `author` requires a string `username` and may contain a string `name`. Optional `quotedTweet` follows the same shape (maximum 16 nested quotes). Other original fields remain in `data`; only the existing allowlisted projection is sent to TypeSafe.
+
+The report records `selection.source: "input"`, not a fresh X collection. Supplied dates and content are caller assertions, not verified by Bird. Duplicate IDs follow the same first-occurrence rule and unique-post limits below. Empty input makes no provider calls. Input errors exit 2; analysis limits and partial failures preserve the input/report and exit 1. This command does not retry or replace missing context.
+
 ## Supported reads and group boundaries
 
 | Command | Selected content |
@@ -133,7 +143,7 @@ A request failure stops subsequent requests. Completed results remain available;
 
 If X collection fails, JEV does not run. Available partial data remains in local output. With JEV enabled, failed news sub-fetches or requested bookmark expansions also fail collection rather than silently analyzing a fallback set. Ordinary non-JEV best-effort behavior is unchanged.
 
-JEV argument/configuration errors exit 2 before collection. Failed collection, analysis, or unrun requested work on a nonempty selection exits 1. Completed work and successful empty selections exit 0. Provider errors are sanitized; no raw request/error bodies or keys are printed.
+JEV argument/configuration errors exit 2 before collection. Failed collection, analysis, or unrun requested work on a nonempty selection exits 1. Completed work and successful empty selections exit 0. Provider errors are sanitized; no raw request/error bodies or keys are printed. Invalid-answer messages identify the failed structural check (such as a missing answer, undeclared category, invalid confidence, or distribution keys/total) using static text, never rejected values. These messages diagnose validation failures without weakening acceptance or claiming factual correctness.
 
 ## Output
 

@@ -502,6 +502,46 @@ describe('analyzePosts provider execution', () => {
   });
 });
 
+describe('sanitized answer diagnostics', () => {
+  it.each([
+    [null, 'Invalid answer type.'],
+    [{ type: 'score' }, 'Invalid answer type.'],
+    [{ ...choiceAnswer('yes', { yes: 1, no: 0 }), choice: null }, 'Category choice is not a string.'],
+    [choiceAnswer('private-response', { yes: 1, no: 0 }), 'Category choice is not a declared label.'],
+    [choiceAnswer('yes', { yes: 1, no: 0 }, -1), 'Confidence is outside [0, 1].'],
+    [{ ...choiceAnswer('yes', { yes: 1, no: 0 }), probabilities: null }, 'Probabilities are not an object.'],
+    [choiceAnswer('yes', { yes: 1 }), 'Probability key count differs from the declared categories.'],
+    [
+      choiceAnswer('yes', { yes: 1, no: 0, 'private-response': 0 }),
+      'Probability key count differs from the declared categories.',
+    ],
+    [choiceAnswer('yes', { yes: 1, 'private-response': 0 }), 'Unexpected probability key.'],
+    [choiceAnswer('yes', { yes: 2, no: -1 }), 'Probability value is outside [0, 1].'],
+    [choiceAnswer('yes', { yes: 0.8, no: 0.1 }), 'Probabilities do not sum to one within rounding tolerance.'],
+  ])('reports static diagnostics for an invalid category answer %#', async (answer, message) => {
+    const spec = mixedSpec();
+    spec.tasks = spec.tasks.filter((task) => task.scope === 'post');
+    const mocked = recordFetch(() =>
+      jsonResponse(200, okEnvelope({ stance: answer, quality: scoreAnswer(1, { '0': 0, '1': 1, '2': 0 }) })),
+    );
+    const report = await analyzePosts([makePost('p')], spec, { apiKey: API_KEY, fetch: mocked.fetch });
+    expect(report.posts[0].results.stance).toMatchObject({
+      status: 'failed',
+      error: { code: 'invalid_response', message },
+    });
+    expect(report.posts[0].results.quality.status).toBe('ok');
+    expect(report.requests[0].status).toBe('invalid_answers');
+    expect(report.usage).toEqual({ inputTokens: 11, outputTokens: 3, complete: true });
+    expect(JSON.stringify(report)).not.toContain('private-response');
+  });
+
+  it('distinguishes missing answers without revealing extra keys', async () => {
+    const mocked = recordFetch(() => jsonResponse(200, okEnvelope({})));
+    const report = await analyzePosts([makePost('p')], postOnlySpec(), { apiKey: API_KEY, fetch: mocked.fetch });
+    expect(report.posts[0].results.flag).toMatchObject({ error: { message: 'Answer missing.' } });
+  });
+});
+
 describe('analyzePosts provider errors', () => {
   it.each([
     [401, 'authentication'],

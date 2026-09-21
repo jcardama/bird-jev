@@ -94,6 +94,7 @@ With `TYPESAFE_API_KEY` supplied through your environment, explicitly opt into a
 ```bash
 bird search "public transit" -n 20 --jev --sentiment "public transit" --jev-scope both --json
 bird thread 1234567890123456789 --jev --jev-spec ./examples/jev-analysis.json --json
+bird analyze --input posts.json --jev --jev-spec ./examples/jev-analysis.json --json
 ```
 
 `--jev` authorizes sending selected post text and disclosed context to TypeSafe, including protected or account-specific selections. It does not send X cookies or raw responses. Analyze individual posts, the selected group, or both with category, boolean, and rubric-score tasks. Ordinary output stays unchanged without JEV; enhanced JSON keeps the original data under `data` and analysis under `jev`.
