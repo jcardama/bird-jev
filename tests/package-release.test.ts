@@ -85,7 +85,13 @@ type PublisherOptions = {
   bytes?: Buffer;
   receipt?: unknown;
   responses?: Array<Response | Error>;
-  npmResult?: { status: number; stdout?: string; stderr?: string };
+  npmResult?: {
+    status: number | null;
+    stdout?: string;
+    stderr?: string;
+    error?: NodeJS.ErrnoException;
+    signal?: NodeJS.Signals;
+  };
   entries?: Array<{ name: string; type?: 'file' | 'symlink' | 'directory' }>;
   env?: Record<string, string>;
 };
@@ -135,16 +141,20 @@ async function runPublisher(options: PublisherOptions = {}) {
     RUNNER_TEMP: '/tmp',
     ACTIONS_ID_TOKEN_REQUEST_URL: 'https://oidc.example/request',
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'oidc-token',
+    ACTIONS_RUNTIME_TOKEN: 'must-not-survive',
+    ACTIONS_RUNTIME_URL: 'https://runtime.example/',
+    ACTIONS_RESULTS_URL: 'https://results.example/',
     NODE_AUTH_TOKEN: 'must-not-survive',
     NPM_TOKEN: 'must-not-survive',
     GITHUB_STEP_SUMMARY: '/summary',
     ...options.env,
   };
 
-  let resolveExit: (code: number) => void;
-  const exited = new Promise<number>((resolve) => {
-    resolveExit = resolve;
-  });
+  const runtime = {
+    env: baseEnv,
+    exitCode: 0,
+    versions: { node: '24.20.0' },
+  };
   const fs = {
     readdirSync(path: string) {
       if (path !== artifactDir) {
@@ -203,12 +213,7 @@ async function runPublisher(options: PublisherOptions = {}) {
       }
       return next;
     },
-    process: {
-      env: baseEnv,
-      exit: (code: number) => resolveExit(code),
-      exitCode: undefined,
-      versions: { node: '24.20.0' },
-    },
+    process: runtime,
     require(name: string) {
       if (name === 'node:fs') {
         return fs;
@@ -233,9 +238,10 @@ async function runPublisher(options: PublisherOptions = {}) {
             }
             publishes.push({ args, env: spawnOptions?.env ?? {} });
             return {
-              status: options.npmResult?.status ?? 0,
-              stdout: options.npmResult?.stdout ?? '',
-              stderr: options.npmResult?.stderr ?? '',
+              status: 0,
+              stdout: '',
+              stderr: '',
+              ...options.npmResult,
             };
           },
         };
@@ -249,9 +255,8 @@ async function runPublisher(options: PublisherOptions = {}) {
     },
   });
   // vm tests execute the workflow's trusted inline block with only its declared boundaries.
-  new Script(publisher).runInContext(sandbox, { timeout: 1000 });
-  const code = await exited;
-  return { artifact, code, fetches, logs, publishes, timers };
+  await new Script(publisher).runInContext(sandbox, { timeout: 1000 });
+  return { artifact, code: runtime.exitCode, fetches, logs, publishes, timers };
 }
 
 const awaitlessPath = {
@@ -259,10 +264,7 @@ const awaitlessPath = {
 };
 
 function registryJson(status: number, body?: object): Response {
-  return {
-    status,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-  } as Response;
+  return new Response(body === undefined ? '' : JSON.stringify(body), { status });
 }
 
 describe('publish workflow contract', () => {
@@ -338,6 +340,9 @@ describe('publish workflow contract', () => {
     });
     expect(result.publishes[0]?.env).not.toHaveProperty('NODE_AUTH_TOKEN');
     expect(result.publishes[0]?.env).not.toHaveProperty('NPM_TOKEN');
+    expect(result.publishes[0]?.env).not.toHaveProperty('ACTIONS_RUNTIME_TOKEN');
+    expect(result.publishes[0]?.env).not.toHaveProperty('ACTIONS_RUNTIME_URL');
+    expect(result.publishes[0]?.env).not.toHaveProperty('ACTIONS_RESULTS_URL');
   });
 
   it('skips an exactly matching immutable version without publishing or tag writes', async () => {
@@ -445,6 +450,33 @@ describe('publish workflow contract', () => {
     });
     expect(result.code).toBe(1);
     expect(result.publishes).toHaveLength(1);
+  });
+
+  it.each([
+    { status: null, error: Object.assign(new Error('spawnSync npm ETIMEDOUT'), { code: 'ETIMEDOUT' }) },
+    { status: null, signal: 'SIGTERM' as const },
+  ])('reports an indeterminate publication without retrying: %j', async (npmResult) => {
+    const diagnostics = 'npm diagnostic output\n'.repeat(1000);
+    const result = await runPublisher({
+      npmResult: { ...npmResult, stdout: diagnostics, stderr: 'npm stderr detail' },
+      responses: [registryJson(404), registryJson(200, { 'dist-tags': { latest: '0.10.0' } })],
+    });
+    expect(result.code).toBe(1);
+    expect(result.publishes).toHaveLength(1);
+    expect(result.fetches).toHaveLength(2);
+    expect(result.logs.join('\n')).toContain('Publication outcome may be unknown; re-run to reconcile');
+    expect(result.logs.join('\n')).toContain(diagnostics);
+    expect(result.logs.join('\n')).toContain('npm stderr detail');
+    expect(result.logs.join('\n')).toContain('outcome: failed');
+    expect(result.logs.join('\n')).toContain('error' in npmResult ? 'timed out' : 'SIGTERM');
+  });
+
+  it.each([404, 401, 403, 500])('releases an unread HTTP %i response body', async (status) => {
+    const response = registryJson(status, { error: 'registry error' });
+    const result = await runPublisher({ responses: [response] });
+    expect(response.bodyUsed).toBe(true);
+    expect(result.code).toBe(1);
+    expect(result.publishes).toHaveLength(0);
   });
 
   it.each([

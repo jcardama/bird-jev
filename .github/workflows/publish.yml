@@ -183,27 +183,19 @@ jobs:
             'RUNNER_TOOL_CACHE',
             'ACTIONS_ID_TOKEN_REQUEST_URL',
             'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
-            'ACTIONS_RUNTIME_TOKEN',
-            'ACTIONS_RUNTIME_URL',
-            'ACTIONS_RESULTS_URL',
           ];
 
-          void main().then(
-            () => {
-              process.exit(process.exitCode == null ? 0 : process.exitCode);
-            },
-            (error) => {
-              const message = error instanceof Error ? error.stack || error.message : String(error);
-              console.error(message);
-              writeSummary([
-                '## npm publication',
-                '',
-                '- outcome: failed',
-                '- error: ' + firstLine(error instanceof Error ? error.message : String(error)),
-              ]);
-              process.exit(1);
-            },
-          );
+          main().catch((error) => {
+            const message = error instanceof Error ? error.stack || error.message : String(error);
+            console.error(message);
+            writeSummary([
+              '## npm publication',
+              '',
+              '- outcome: failed',
+              '- error: ' + firstLine(error instanceof Error ? error.message : String(error)),
+            ]);
+            process.exitCode = 1;
+          });
 
           async function main() {
             assertPublisherToolchain();
@@ -416,6 +408,9 @@ jobs:
                 'Registry request failed: ' + url + ': ' + (error instanceof Error ? error.message : String(error)),
               );
             }
+            if (response.status < 200 || response.status >= 300) {
+              await response.body?.cancel();
+            }
             if (response.status === 404) {
               return { status: 404, body: null };
             }
@@ -504,14 +499,13 @@ jobs:
               timeout: 120000,
               shell: false,
             });
-            if (result.error) {
-              throw new Error('npm publish failed to start: ' + result.error.message);
-            }
-            if (result.status !== 0) {
+            if (result.error || result.signal || result.status !== 0) {
+              const reason = result.error?.code === 'ETIMEDOUT'
+                ? 'timed out'
+                : result.error?.message || result.signal || 'exit ' + result.status;
               throw new Error(
-                'npm publish failed (' +
-                  (result.timedOut ? 'timed out' : 'exit ' + result.status) +
-                  ')\n' +
+                'npm publish did not complete (' + reason + '). ' +
+                  'Publication outcome may be unknown; re-run to reconcile with the registry.\n' +
                   (result.stdout || '') +
                   (result.stderr || ''),
               );

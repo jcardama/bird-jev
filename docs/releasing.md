@@ -45,6 +45,8 @@ After `.github/workflows/publish.yml` is merged and npm trust is configured, pub
 
 ### One-time npm trust setup
 
+The package must already exist on npm before a trusted publisher can be configured; `bird-jev` already meets this prerequisite. An initial publication of a new package requires the separately authorized manual path below.
+
 An authorized npm package owner must configure a GitHub Actions trusted publisher for `bird-jev` in npm's package settings:
 
 | Setting | Value |
