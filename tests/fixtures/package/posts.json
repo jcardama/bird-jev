@@ -1,0 +1,11 @@
+[
+  {
+    "id": "1",
+    "text": "First view",
+    "author": { "username": "reader" },
+    "conversationId": "thread",
+    "quotedTweet": { "id": "q", "text": "Context" },
+    "_raw": { "private": "not-sent" }
+  },
+  { "id": "2", "text": "Second view" }
+]

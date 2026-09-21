@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {
+      "id": "stance",
+      "scope": "post",
+      "instructions": "Classify",
+      "output": { "type": "category", "labels": ["yes", "no"] }
+    },
+    {
+      "id": "group_flag",
+      "scope": "collection",
+      "instructions": "Are these posts on-topic together?",
+      "output": { "type": "boolean", "threshold": 0.6 }
+    }
+  ]
+}

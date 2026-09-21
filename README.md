@@ -2,7 +2,7 @@
 
 Bird-JEV is a command-line tool and TypeScript library for reading and searching X. It builds on Bird and preserves the `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered 0.8.1 source; see [Provenance](docs/provenance.md) for recovery and license facts.
 
-Version 0.9.0 adds opt-in [JEV analysis](docs/jev.md) of individual posts and collected groups, with custom classification, boolean, and rubric-score tasks. Ordinary reads remain unchanged. This package is not published to npm. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
+Bird-JEV supports opt-in [JEV analysis](docs/jev.md) of individual posts and collected groups, with custom classification, boolean, and rubric-score tasks. Version 0.10.0 adds analysis of saved JSON posts without collecting from X and prepares npm distribution. Ordinary reads remain unchanged. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
 
 ## Disclaimer
 
@@ -14,17 +14,38 @@ Bots are not welcome on X/Twitter. If you absolutely have to, use browser automa
 
 ## Install
 
-Requires Node ≥22 and pnpm 10.11.0. Build from source; there is no registry or Homebrew release of bird-jev.
+Requires Node ≥22. The npm package is `bird-jev`; its executable remains `bird`.
+
+For a published npm release:
 
 ```bash
-git clone git@github.com:jcardama/bird-jev.git
+npm install -g bird-jev
+bird --version
+```
+
+If another package or staged runtime already provides `bird`, inspect that installation before replacing it. Do not use `--force` to bypass an executable collision; preserve a rollback path. This release's preparation does not update existing installations automatically.
+
+For library use:
+
+```bash
+npm install bird-jev
+```
+
+```js
+import { analyzePosts, createJevPresets, TwitterClient } from 'bird-jev';
+```
+
+npm installations include the patched sweet-cookie dependency and need neither pnpm nor a compiler. To build from source, use pnpm 10.11.0:
+
+```bash
+git clone https://github.com/jcardama/bird-jev.git
 cd bird-jev
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm run build:dist
 node dist/cli.js --version
 ```
 
-See `docs/releasing.md` for installation and rollback. Existing Bird credentials and `~/.config/bird` configuration continue to work.
+See [Releases](docs/releasing.md) for artifact verification, installation, and rollback. Existing Bird credentials and `~/.config/bird` configuration continue to work. There is no Homebrew package.
 
 ## Quickstart
 
@@ -93,8 +114,8 @@ With `TYPESAFE_API_KEY` supplied through your environment, explicitly opt into a
 
 ```bash
 bird search "public transit" -n 20 --jev --sentiment "public transit" --jev-scope both --json
-bird thread 1234567890123456789 --jev --jev-spec ./examples/jev-analysis.json --json
-bird analyze --input posts.json --jev --jev-spec ./examples/jev-analysis.json --json
+bird thread 1234567890123456789 --jev --relevance "public transit" --json
+bird analyze --input posts.json --jev --sentiment "public transit" --jev-scope both --json
 ```
 
 `--jev` authorizes sending selected post text and disclosed context to TypeSafe, including protected or account-specific selections. It does not send X cookies or raw responses. Analyze individual posts, the selected group, or both with category, boolean, and rubric-score tasks. Ordinary output stays unchanged without JEV; enhanced JSON keeps the original data under `data` and analysis under `jev`.

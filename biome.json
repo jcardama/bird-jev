@@ -46,7 +46,14 @@
     }
   },
   "files": {
-    "includes": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/check.js"],
+    "includes": [
+      "src/**/*.{ts,tsx}",
+      "tests/**/*.{ts,tsx}",
+      "scripts/check.js",
+      "scripts/check-package.js",
+      "scripts/copy-dist-assets.js",
+      "scripts/package/**/*.js"
+    ],
     "ignoreUnknown": true
   }
 }
