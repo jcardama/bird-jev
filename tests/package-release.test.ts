@@ -254,8 +254,11 @@ async function runPublisher(options: PublisherOptions = {}) {
       return 1;
     },
   });
-  // vm tests execute the workflow's trusted inline block with only its declared boundaries.
-  await new Script(publisher).runInContext(sandbox, { timeout: 1000 });
+  // The inline entrypoint returns its promise as the script completion value.
+  const completion = new Script(publisher).runInContext(sandbox, { timeout: 1000 });
+  expect(completion).toHaveProperty('then', expect.any(Function));
+  await completion;
+  expect(files.get('/summary')).toContain('- outcome: ');
   return { artifact, code: runtime.exitCode, fetches, logs, publishes, timers };
 }
 
@@ -469,6 +472,19 @@ describe('publish workflow contract', () => {
     expect(result.logs.join('\n')).toContain('npm stderr detail');
     expect(result.logs.join('\n')).toContain('outcome: failed');
     expect(result.logs.join('\n')).toContain('error' in npmResult ? 'timed out' : 'SIGTERM');
+  });
+
+  it('preserves registry context when response cleanup fails', async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new Error('body stream failed'));
+      },
+    });
+    const result = await runPublisher({ responses: [new Response(body, { status: 500 })] });
+    expect(result.code).toBe(1);
+    expect(result.publishes).toHaveLength(0);
+    expect(result.logs.join('\n')).toContain('Registry request failed: https://registry.npmjs.org/bird-jev/0.10.1');
+    expect(result.logs.join('\n')).toContain('body stream failed');
   });
 
   it.each([404, 401, 403, 500])('releases an unread HTTP %i response body', async (status) => {

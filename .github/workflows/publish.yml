@@ -399,6 +399,9 @@ jobs:
                   'User-Agent': 'bird-jev-github-release-publisher',
                 },
               });
+              if (response.status < 200 || response.status >= 300) {
+                await response.body?.cancel();
+              }
             } catch (error) {
               const name = error && error.name;
               if (name === 'AbortError' || name === 'TimeoutError') {
@@ -407,9 +410,6 @@ jobs:
               throw new Error(
                 'Registry request failed: ' + url + ': ' + (error instanceof Error ? error.message : String(error)),
               );
-            }
-            if (response.status < 200 || response.status >= 300) {
-              await response.body?.cancel();
             }
             if (response.status === 404) {
               return { status: 404, body: null };
