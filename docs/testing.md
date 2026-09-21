@@ -26,6 +26,20 @@ pnpm run lint
 
 The individual commands show normal tool output. Plain `pnpm test` remains available, but it includes live test files and relies on their environment guards. Use the explicit live-folder exclusion for offline work.
 
+## npm artifact verification (registry-backed)
+
+```sh
+pnpm run check:package
+```
+
+This separate gate contacts the public npm registry to acquire consumer dependencies. It is not part of the offline `check` command or Vitest discovery. CI runs it after the offline check on Node 22.
+
+It packs the safe distribution, inspects the actual tarball, proves the bundled sweet-cookie patch survives, and installs that exact artifact in an isolated consumer outside the checkout. It exercises the installed executable, ESM API, and TypeScript declarations. Saved-post analysis runs through the real engine and SDK with mocked fetch and synthetic credentials. No X, paid JEV, browser, or Keychain access is part of the gate.
+
+Use `--output /absolute/external/directory` to retain the artifact and receipt in a fresh directory. Use `--tarball /absolute/path/package.tgz` to test an already-packed artifact without rebuilding it, including on a second Node version. Reuse requires its original adjacent receipt and matching source commit, and verifies its digest before execution. Neither mode changes the global installation. See [Releases](releasing.md) for the publication boundary and exact-artifact workflow.
+
+Packaging policy and patched-provider regression tests belong in the ordinary offline suite, using synthetic archives and mocked OS/database/Keychain boundaries. Real browser decryption on macOS is not implied by these tests. The provider fixture uses built-in SQLite; that suite skips on older Node 22 minors where the builtin is unavailable. The current Node 22 CI runtime runs it.
+
 ## Live tests (separately authorized)
 
 These suites run the CLI against real X GraphQL endpoints. They contain both read checks and opt-in mutations, including follow/unfollow, likes, retweets, and bookmarks. They are not a read-only verification gate. Obtain separate authorization for the exact live operations; none are part of `pnpm run check` or CI.

@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile --ignore-scripts
 pnpm run check
 ```
 
-`check` runs the distribution build, offline tests, and lint in order. It prints short status lines and the complete failed-stage output. It stops at the first failure. CI runs the same command.
+`check` runs the distribution build, offline tests, and lint in order. It prints short status lines and the complete failed-stage output. It stops at the first failure. CI runs the same command, then the separate registry-backed `pnpm run check:package` artifact gate. The default check remains offline.
 
 For focused work, run only the relevant offline tests:
 

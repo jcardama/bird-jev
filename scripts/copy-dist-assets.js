@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -17,3 +17,5 @@ for (const file of files) {
   mkdirSync(dirname(file.to), { recursive: true });
   writeFileSync(file.to, readFileSync(file.from));
 }
+
+chmodSync(resolve(root, 'dist/cli.js'), 0o755);

@@ -38,3 +38,6 @@ jobs:
         env:
           BIRD_LIVE: '0'
         run: pnpm run check
+
+      - name: Verify npm artifact and isolated consumer
+        run: pnpm run check:package

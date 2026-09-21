@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.9.0 — Unreleased
+## 0.10.0
+
+### Added
+- Analyze saved JSON posts with `bird analyze --input <path> --jev` without collecting from X or resolving X credentials.
+- Prepare npm distribution as `bird-jev`, retaining the `bird` executable and bundling the tested sweet-cookie patch.
+
+### Changed
+- Explain invalid provider answers more precisely while preserving valid sibling results.
+- Build a clean distribution before packing and verify the actual npm artifact in an isolated consumer.
+
+## 0.9.0 — 2026-09-21
 
 ### Added
 - Analyze individual posts and selected collections with explicit `--jev` consent.
