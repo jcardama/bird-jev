@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.1
+
+### Features
+- **Choose Top or Latest search results.** Use `bird search --mode top|latest`. Latest remains the default. When resuming with `--cursor`, use the same query and mode as the original search.
+- **Select search mode through the library.** Pass `mode: 'Top'` or `mode: 'Latest'` to `search` or `getAllSearchResults`.
+
+### Improvements
+- **Stable GitHub releases publish the verified npm artifact.** Trusted publishing uses the exact tested tarball, without a saved npm token. Merging source alone does not publish a package.
+
+### Known limitations
+- **One Top read returned an unexplained client failure.** Subsequent reads succeeded, but the initial failure has not been reproduced and its cause remains unresolved.
+
 ## 0.10.0
 
 ### Added

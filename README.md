@@ -2,7 +2,7 @@
 
 Bird-JEV is a command-line tool and TypeScript library for reading and searching X. It builds on Bird and preserves the `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered 0.8.1 source; see [Provenance](docs/provenance.md) for recovery and license facts.
 
-Bird-JEV supports opt-in [JEV analysis](docs/jev.md) of individual posts and collected groups, with custom classification, boolean, and rubric-score tasks. Version 0.10.0 adds analysis of saved JSON posts without collecting from X and prepares npm distribution. Ordinary reads remain unchanged. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
+Bird-JEV supports opt-in [JEV analysis](docs/jev.md) of individual posts and collected groups, including saved JSON posts, with custom classification, boolean, and rubric-score tasks. Version 0.10.1 adds `top` and `latest` search modes; `latest` remains the default. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
 
 ## Disclaimer
 
