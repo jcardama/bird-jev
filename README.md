@@ -2,7 +2,7 @@
 
 Bird-JEV is a command-line tool and TypeScript library for reading and searching X. It builds on Bird and preserves the `bird` executable, library API, cookie authentication, and configuration paths. Based on the recovered 0.8.1 source; see [Provenance](docs/provenance.md) for recovery and license facts.
 
-Version 0.8.2 fixes search pagination. JEV capabilities are planned, not implemented: there is no `--jev` flag or TypeSafe key setup yet. This package is not published to npm. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
+Version 0.9.0 adds opt-in [JEV analysis](docs/jev.md) of individual posts and collected groups, with custom classification, boolean, and rubric-score tasks. Ordinary reads remain unchanged. This package is not published to npm. The inherited write commands remain available, but this fork's maintenance and verification focus is read-only.
 
 ## Disclaimer
 
@@ -86,6 +86,19 @@ bird followers --user 12345678 -n 10  # by user ID
 # Refresh GraphQL query IDs cache (no rebuild)
 bird query-ids --fresh
 ```
+
+## JEV analysis
+
+With `TYPESAFE_API_KEY` supplied through your environment, explicitly opt into analysis:
+
+```bash
+bird search "public transit" -n 20 --jev --sentiment "public transit" --jev-scope both --json
+bird thread 1234567890123456789 --jev --jev-spec ./examples/jev-analysis.json --json
+```
+
+`--jev` authorizes sending selected post text and disclosed context to TypeSafe, including protected or account-specific selections. It does not send X cookies or raw responses. Analyze individual posts, the selected group, or both with category, boolean, and rubric-score tasks. Ordinary output stays unchanged without JEV; enhanced JSON keeps the original data under `data` and analysis under `jev`.
+
+See [JEV analysis](docs/jev.md) for command coverage, custom task definitions, consent, limits, failure handling, and the library API. Oversized groups are rejected, not silently truncated. Live provider calls are not part of the offline check.
 
 ## News & Trending
 

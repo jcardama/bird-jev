@@ -1,7 +1,9 @@
 import type { Command } from 'commander';
+import { addJevOptions, completeJevCommand, type JevCommandOptions, prepareJevOrExit } from '../cli/jev.js';
 import type { CliContext } from '../cli/shared.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 import type { ExploreTab, NewsItem } from '../lib/twitter-client-news.js';
+import type { TweetData } from '../lib/twitter-client-types.js';
 
 function formatPostCount(count: number): string {
   if (count >= 1_000_000) {
@@ -66,24 +68,39 @@ function printNewsItems(
   }
 }
 
+function collectNewsPosts(items: NewsItem[]): TweetData[] {
+  const posts: TweetData[] = [];
+  for (const item of items) {
+    if (!item.tweets) {
+      continue;
+    }
+    for (const tweet of item.tweets) {
+      posts.push(tweet);
+    }
+  }
+  return posts;
+}
+
 export function registerNewsCommand(program: Command, ctx: CliContext): void {
-  program
-    .command('news')
-    .alias('trending')
-    .description('Fetch AI-curated news and trending topics from Explore tabs')
-    .option('-n, --count <number>', 'Number of items to fetch', '10')
-    .option('--ai-only', 'Show only AI-curated news items')
-    .option('--with-tweets', 'Also fetch related tweets for each news item')
-    .option('--tweets-per-item <number>', 'Number of tweets to fetch per news item (default: 5)', '5')
-    .option('--for-you', 'Fetch only from For You tab')
-    .option('--news-only', 'Fetch only from News tab')
-    .option('--sports', 'Fetch only from Sports tab')
-    .option('--entertainment', 'Fetch only from Entertainment tab')
-    .option('--trending-only', 'Fetch only from Trending tab')
-    .option('--json', 'Output as JSON')
-    .option('--json-full', 'Output as JSON with full raw API response in _raw field')
-    .action(
-      async (cmdOpts: {
+  addJevOptions(
+    program
+      .command('news')
+      .alias('trending')
+      .description('Fetch AI-curated news and trending topics from Explore tabs')
+      .option('-n, --count <number>', 'Number of items to fetch', '10')
+      .option('--ai-only', 'Show only AI-curated news items')
+      .option('--with-tweets', 'Also fetch related tweets for each news item')
+      .option('--tweets-per-item <number>', 'Number of tweets to fetch per news item (default: 5)', '5')
+      .option('--for-you', 'Fetch only from For You tab')
+      .option('--news-only', 'Fetch only from News tab')
+      .option('--sports', 'Fetch only from Sports tab')
+      .option('--entertainment', 'Fetch only from Entertainment tab')
+      .option('--trending-only', 'Fetch only from Trending tab')
+      .option('--json', 'Output as JSON')
+      .option('--json-full', 'Output as JSON with full raw API response in _raw field'),
+  ).action(
+    async (
+      cmdOpts: {
         count?: string;
         aiOnly?: boolean;
         withTweets?: boolean;
@@ -95,78 +112,109 @@ export function registerNewsCommand(program: Command, ctx: CliContext): void {
         trendingOnly?: boolean;
         json?: boolean;
         jsonFull?: boolean;
-      }) => {
-        const opts = program.opts();
-        const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
-        const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
-        const count = Number.parseInt(cmdOpts.count || '10', 10);
-        const tweetsPerItem = Number.parseInt(cmdOpts.tweetsPerItem || '5', 10);
+      } & JevCommandOptions,
+    ) => {
+      const prepared = prepareJevOrExit(ctx, cmdOpts);
+      if (prepared.enabled && !cmdOpts.withTweets) {
+        console.error(`${ctx.p('err')}--jev requires --with-tweets for news.`);
+        process.exit(2);
+      }
 
-        const { cookies, warnings } = await ctx.resolveCredentialsFromOptions(opts);
+      const opts = program.opts();
+      const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
+      const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
+      const count = Number.parseInt(cmdOpts.count || '10', 10);
+      const tweetsPerItem = Number.parseInt(cmdOpts.tweetsPerItem || '5', 10);
 
-        for (const warning of warnings) {
-          console.error(`${ctx.p('warn')}${warning}`);
-        }
+      const { cookies, warnings } = await ctx.resolveCredentialsFromOptions(opts);
 
-        if (Number.isNaN(count) || count < 1) {
-          console.error(`${ctx.p('err')}--count must be a positive number`);
-          process.exit(1);
-        }
+      for (const warning of warnings) {
+        console.error(`${ctx.p('warn')}${warning}`);
+      }
 
-        if (Number.isNaN(tweetsPerItem) || tweetsPerItem < 1) {
-          console.error(`${ctx.p('err')}--tweets-per-item must be a positive number`);
-          process.exit(1);
-        }
+      if (Number.isNaN(count) || count < 1) {
+        console.error(`${ctx.p('err')}--count must be a positive number`);
+        process.exit(1);
+      }
 
-        if (!cookies.authToken || !cookies.ct0) {
-          console.error(`${ctx.p('err')}Missing required credentials`);
-          process.exit(1);
-        }
+      if (Number.isNaN(tweetsPerItem) || tweetsPerItem < 1) {
+        console.error(`${ctx.p('err')}--tweets-per-item must be a positive number`);
+        process.exit(1);
+      }
 
-        // Determine which tabs to fetch from
-        const tabs: ExploreTab[] = [];
-        if (cmdOpts.forYou) {
-          tabs.push('forYou');
-        }
-        if (cmdOpts.newsOnly) {
-          tabs.push('news');
-        }
-        if (cmdOpts.sports) {
-          tabs.push('sports');
-        }
-        if (cmdOpts.entertainment) {
-          tabs.push('entertainment');
-        }
-        if (cmdOpts.trendingOnly) {
-          tabs.push('trending');
-        }
+      if (!cookies.authToken || !cookies.ct0) {
+        console.error(`${ctx.p('err')}Missing required credentials`);
+        process.exit(1);
+      }
 
-        // If no specific tabs selected, use defaults (all tabs except trending)
-        const tabsToFetch = tabs.length > 0 ? tabs : undefined;
+      // Determine which tabs to fetch from
+      const tabs: ExploreTab[] = [];
+      if (cmdOpts.forYou) {
+        tabs.push('forYou');
+      }
+      if (cmdOpts.newsOnly) {
+        tabs.push('news');
+      }
+      if (cmdOpts.sports) {
+        tabs.push('sports');
+      }
+      if (cmdOpts.entertainment) {
+        tabs.push('entertainment');
+      }
+      if (cmdOpts.trendingOnly) {
+        tabs.push('trending');
+      }
 
-        const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
-        const includeRaw = cmdOpts.jsonFull ?? false;
-        const withTweets = cmdOpts.withTweets ?? false;
-        const aiOnly = cmdOpts.aiOnly ?? false;
+      // If no specific tabs selected, use defaults (all tabs except trending)
+      const tabsToFetch = tabs.length > 0 ? tabs : undefined;
 
-        const result = await client.getNews(count, {
-          includeRaw,
-          withTweets,
-          tweetsPerItem,
-          aiOnly,
-          tabs: tabsToFetch,
+      const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
+      const includeRaw = cmdOpts.jsonFull ?? false;
+      const withTweets = cmdOpts.withTweets ?? false;
+      const aiOnly = cmdOpts.aiOnly ?? false;
+
+      const result = await client.getNews(count, {
+        includeRaw,
+        withTweets,
+        tweetsPerItem,
+        aiOnly,
+        tabs: tabsToFetch,
+        ...(prepared.enabled ? { strictCollection: true } : {}),
+      });
+
+      const isJson = Boolean(cmdOpts.json || cmdOpts.jsonFull);
+      const items = result.items ?? [];
+
+      if (prepared.enabled) {
+        await completeJevCommand({
+          ctx,
+          prepared,
+          posts: collectNewsPosts(items),
+          collection: { source: 'news', status: result.success ? 'ok' : 'failed' },
+          json: isJson,
+          data: items,
+          printOrdinary: () => {
+            printNewsItems(items, ctx, {
+              json: false,
+              emptyMessage: 'No news items found.',
+              tweetLimit: withTweets ? tweetsPerItem : undefined,
+            });
+          },
+          collectionError: result.success ? undefined : `Failed to fetch news: ${result.error}`,
         });
+        return;
+      }
 
-        if (result.success) {
-          printNewsItems(result.items, ctx, {
-            json: cmdOpts.json || cmdOpts.jsonFull,
-            emptyMessage: 'No news items found.',
-            tweetLimit: withTweets ? tweetsPerItem : undefined,
-          });
-        } else {
-          console.error(`${ctx.p('err')}Failed to fetch news: ${result.error}`);
-          process.exit(1);
-        }
-      },
-    );
+      if (result.success) {
+        printNewsItems(result.items, ctx, {
+          json: cmdOpts.json || cmdOpts.jsonFull,
+          emptyMessage: 'No news items found.',
+          tweetLimit: withTweets ? tweetsPerItem : undefined,
+        });
+      } else {
+        console.error(`${ctx.p('err')}Failed to fetch news: ${result.error}`);
+        process.exit(1);
+      }
+    },
+  );
 }

@@ -1,0 +1,22 @@
+{
+  "tasks": [
+    {
+      "id": "firsthand",
+      "scope": "post",
+      "instructions": "Does the author explicitly describe personally using public transit?",
+      "output": {
+        "type": "boolean",
+        "threshold": 0.5
+      }
+    },
+    {
+      "id": "discussion_stance",
+      "scope": "collection",
+      "instructions": "Assess the overall stance toward public transit across the supplied posts together. Use mixed when opposing stances are present.",
+      "output": {
+        "type": "category",
+        "labels": ["positive", "negative", "mixed", "neutral", "unclear"]
+      }
+    }
+  ]
+}

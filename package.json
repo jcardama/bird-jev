@@ -1,9 +1,9 @@
 {
   "name": "bird-jev",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "private": true,
   "packageManager": "pnpm@10.11.0",
-  "description": "Maintained Bird CLI for reading and searching X; optional JEV capabilities planned",
+  "description": "Maintained Bird CLI for reading and searching X with opt-in JEV analysis",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/jcardama/bird-jev.git"
@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@steipete/sweet-cookie": "0.1.0",
+    "@typesafe-ai/sdk": "0.6.0",
     "commander": "^14.0.2",
     "json5": "^2.2.3",
     "kleur": "^4.1.5"

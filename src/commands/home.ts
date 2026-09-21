@@ -1,16 +1,22 @@
 import type { Command } from 'commander';
+import { addJevOptions, completeJevCommand, type JevCommandOptions, prepareJevOrExit } from '../cli/jev.js';
 import type { CliContext } from '../cli/shared.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 
 export function registerHomeCommand(program: Command, ctx: CliContext): void {
-  program
-    .command('home')
-    .description('Get your home timeline ("For You" feed)')
-    .option('-n, --count <number>', 'Number of tweets to fetch', '20')
-    .option('--following', 'Get "Following" feed (chronological) instead of "For You"')
-    .option('--json', 'Output as JSON')
-    .option('--json-full', 'Output as JSON with full raw API response in _raw field')
-    .action(async (cmdOpts: { count?: string; following?: boolean; json?: boolean; jsonFull?: boolean }) => {
+  addJevOptions(
+    program
+      .command('home')
+      .description('Get your home timeline ("For You" feed)')
+      .option('-n, --count <number>', 'Number of tweets to fetch', '20')
+      .option('--following', 'Get "Following" feed (chronological) instead of "For You"')
+      .option('--json', 'Output as JSON')
+      .option('--json-full', 'Output as JSON with full raw API response in _raw field'),
+  ).action(
+    async (
+      cmdOpts: { count?: string; following?: boolean; json?: boolean; jsonFull?: boolean } & JevCommandOptions,
+    ) => {
+      const prepared = prepareJevOrExit(ctx, cmdOpts);
       const opts = program.opts();
       const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
       const count = Number.parseInt(cmdOpts.count || '20', 10);
@@ -38,14 +44,33 @@ export function registerHomeCommand(program: Command, ctx: CliContext): void {
         ? await client.getHomeLatestTimeline(count, { includeRaw })
         : await client.getHomeTimeline(count, { includeRaw });
 
+      const feedType = cmdOpts.following ? 'Following' : 'For You';
+      const emptyMessage = `No tweets found in ${feedType} timeline.`;
+      const isJson = Boolean(cmdOpts.json || cmdOpts.jsonFull);
+      const tweets = result.tweets ?? [];
+
+      if (prepared.enabled) {
+        await completeJevCommand({
+          ctx,
+          prepared,
+          posts: tweets,
+          collection: { source: 'home', status: result.success ? 'ok' : 'failed' },
+          json: isJson,
+          data: tweets,
+          printOrdinary: () => {
+            ctx.printTweets(tweets, { json: false, emptyMessage });
+          },
+          collectionError: result.success ? undefined : `Failed to fetch home timeline: ${result.error}`,
+        });
+        return;
+      }
+
       if (result.success) {
-        const feedType = cmdOpts.following ? 'Following' : 'For You';
-        const emptyMessage = `No tweets found in ${feedType} timeline.`;
-        const isJson = Boolean(cmdOpts.json || cmdOpts.jsonFull);
         ctx.printTweets(result.tweets, { json: isJson, emptyMessage });
       } else {
         console.error(`${ctx.p('err')}Failed to fetch home timeline: ${result.error}`);
         process.exit(1);
       }
-    });
+    },
+  );
 }

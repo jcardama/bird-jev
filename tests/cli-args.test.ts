@@ -53,6 +53,46 @@ describe('cli-args', () => {
     expect(result.argv).toEqual(['node', 'bird', '--plain', 'read', 'https://x.com/user/status/1234567890']);
   });
 
+  it.each(['search', 'likes', 'read'])('keeps command-like JEV subjects as option values (%s)', (subject) => {
+    const args = ['1234567890123456789', '--jev', '--sentiment', subject];
+    expect(resolveCliInvocation(args, known).argv).toEqual(['node', 'bird', 'read', ...args]);
+  });
+
+  it('skips declared option values before resolving the first operand', () => {
+    const args = ['--chrome-profile', 'search', '--jev', '--sentiment', 'likes', '1234567890123456789'];
+    const valueOptions = new Set(['--chrome-profile', '--sentiment']);
+    expect(resolveCliInvocation(args, known, valueOptions).argv).toEqual([
+      'node',
+      'bird',
+      '--chrome-profile',
+      'search',
+      '--jev',
+      '--sentiment',
+      'likes',
+      'read',
+      '1234567890123456789',
+    ]);
+    expect(
+      resolveCliInvocation(['--auth-token', '1234567890123456789'], known, new Set(['--auth-token'])).argv,
+    ).toBeNull();
+  });
+
+  it('handles an option terminator without inspecting later option-like operands', () => {
+    expect(resolveCliInvocation(['--plain', '--', '1234567890123456789'], known).argv).toEqual([
+      'node',
+      'bird',
+      '--plain',
+      'read',
+      '--',
+      '1234567890123456789',
+    ]);
+  });
+
+  it('does not infer a read from a later operand of another command', () => {
+    expect(resolveCliInvocation(['search', '1234567890123456789', '--sentiment', 'likes'], known).argv).toBeNull();
+    expect(resolveCliInvocation(['unknown', '1234567890123456789'], known).argv).toBeNull();
+  });
+
   it('does not rewrite when a known command is provided', () => {
     const result = resolveCliInvocation(['read', 'https://x.com/user/status/1234567890'], known);
     expect(result.argv).toBeNull();
