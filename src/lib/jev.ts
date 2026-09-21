@@ -47,10 +47,9 @@ const CANCELLED_FAILURE: JevFailure = {
   code: 'cancelled',
   message: 'The analysis request was cancelled.',
 };
-const INVALID_RESPONSE: JevFailure = {
-  code: 'invalid_response',
-  message: 'The analysis response was invalid.',
-};
+function invalidResponse(message: string): { ok: false; error: JevFailure } {
+  return { ok: false, error: { code: 'invalid_response', message } };
+}
 const COLLECTION_FAILED: JevFailure = {
   code: 'collection_failed',
   message: 'Collection failed; analysis was not attempted.',
@@ -456,6 +455,7 @@ function checkResponse(
   const model = readModel(raw);
   const usage = readUsage(raw);
   if (!isPlainObject(raw) || model !== JEV_MODEL || !isPlainObject(raw.answers)) {
+    const failure = invalidResponse('Invalid response envelope, model, or answers.').error;
     return {
       receipt: buildReceipt({
         id: request.id,
@@ -465,15 +465,16 @@ function checkResponse(
         status: 'failed',
         model,
         usage,
-        error: INVALID_RESPONSE,
+        error: failure,
       }),
-      outcomes: failedRecord(request.tasks, INVALID_RESPONSE, request.id),
+      outcomes: failedRecord(request.tasks, failure, request.id),
     };
   }
 
   const expected = new Set(request.tasks.map((task) => task.id));
   for (const key of Object.keys(raw.answers)) {
     if (!expected.has(key)) {
+      const failure = invalidResponse('Unexpected answer key.').error;
       return {
         receipt: buildReceipt({
           id: request.id,
@@ -483,25 +484,23 @@ function checkResponse(
           status: 'failed',
           model,
           usage,
-          error: INVALID_RESPONSE,
+          error: failure,
         }),
-        outcomes: failedRecord(request.tasks, INVALID_RESPONSE, request.id),
+        outcomes: failedRecord(request.tasks, failure, request.id),
       };
     }
   }
 
   const outcomes = emptyMap<JevOutcome>();
   for (const task of request.tasks) {
-    if (!Object.hasOwn(raw.answers, task.id)) {
-      defineEntry(outcomes, task.id, { status: 'failed', requestId: request.id, error: INVALID_RESPONSE });
+    const parsed = Object.hasOwn(raw.answers, task.id)
+      ? parseAnswer(task, raw.answers[task.id])
+      : invalidResponse('Answer missing.');
+    if (!parsed.ok) {
+      defineEntry(outcomes, task.id, { status: 'failed', requestId: request.id, error: parsed.error });
       continue;
     }
-    const parsed = parseAnswer(task, raw.answers[task.id]);
-    if (!parsed) {
-      defineEntry(outcomes, task.id, { status: 'failed', requestId: request.id, error: INVALID_RESPONSE });
-      continue;
-    }
-    defineEntry(outcomes, task.id, { status: 'ok', requestId: request.id, ...parsed });
+    defineEntry(outcomes, task.id, { status: 'ok', requestId: request.id, ...parsed.value });
   }
 
   return {
@@ -523,39 +522,46 @@ type ParsedAnswer =
   | { type: 'boolean'; value: boolean; probability: number; threshold: number }
   | { type: 'score'; value: number; probabilities: Record<string, number>; confidence: number };
 
-function parseAnswer(task: JevTask, answer: unknown): ParsedAnswer | undefined {
+type Validation<T> = { ok: true; value: T } | { ok: false; error: JevFailure };
+
+function parseAnswer(task: JevTask, answer: unknown): Validation<ParsedAnswer> {
+  const expectedType = task.output.type === 'boolean' ? 'noul' : task.output.type === 'category' ? 'choice' : 'score';
+  if (!isPlainObject(answer) || answer.type !== expectedType) {
+    return invalidResponse('Invalid answer type.');
+  }
   if (task.output.type === 'boolean') {
-    if (!isPlainObject(answer) || answer.type !== 'noul' || !isProbability(answer.noul)) {
-      return undefined;
+    if (!isProbability(answer.noul)) {
+      return invalidResponse('Boolean probability is outside [0, 1].');
     }
     const threshold = task.output.threshold ?? 0.5;
     return {
-      type: 'boolean',
-      value: answer.noul >= threshold,
-      probability: answer.noul,
-      threshold,
+      ok: true,
+      value: { type: 'boolean', value: answer.noul >= threshold, probability: answer.noul, threshold },
     };
+  }
+  if (!isProbability(answer.confidence)) {
+    return invalidResponse('Confidence is outside [0, 1].');
   }
   if (task.output.type === 'category') {
-    if (!isPlainObject(answer) || answer.type !== 'choice' || typeof answer.choice !== 'string') {
-      return undefined;
+    if (typeof answer.choice !== 'string') {
+      return invalidResponse('Category choice is not a string.');
     }
-    if (!task.output.labels.includes(answer.choice) || !isProbability(answer.confidence)) {
-      return undefined;
+    if (!task.output.labels.includes(answer.choice)) {
+      return invalidResponse('Category choice is not a declared label.');
     }
     const probabilities = readExactProbabilities(answer.probabilities, task.output.labels);
-    if (!probabilities) {
-      return undefined;
+    if (!probabilities.ok) {
+      return probabilities;
     }
     return {
-      type: 'category',
-      value: answer.choice,
-      probabilities,
-      confidence: answer.confidence,
+      ok: true,
+      value: {
+        type: 'category',
+        value: answer.choice,
+        probabilities: probabilities.value,
+        confidence: answer.confidence,
+      },
     };
-  }
-  if (!isPlainObject(answer) || answer.type !== 'score' || !isProbability(answer.confidence)) {
-    return undefined;
   }
   const size = task.output.criteria.length;
   if (
@@ -564,45 +570,43 @@ function parseAnswer(task: JevTask, answer: unknown): ParsedAnswer | undefined {
     answer.score < 0 ||
     answer.score > size - 1
   ) {
-    return undefined;
+    return invalidResponse('Score is outside the declared range.');
   }
   const keys = Array.from({ length: size }, (_, index) => String(index));
   const probabilities = readExactProbabilities(answer.probabilities, keys);
-  if (!probabilities) {
-    return undefined;
+  if (!probabilities.ok) {
+    return probabilities;
   }
   return {
-    type: 'score',
-    value: answer.score,
-    probabilities,
-    confidence: answer.confidence,
+    ok: true,
+    value: { type: 'score', value: answer.score, probabilities: probabilities.value, confidence: answer.confidence },
   };
 }
 
-function readExactProbabilities(raw: unknown, keys: readonly string[]): Record<string, number> | undefined {
+function readExactProbabilities(raw: unknown, keys: readonly string[]): Validation<Record<string, number>> {
   if (!isPlainObject(raw)) {
-    return undefined;
+    return invalidResponse('Probabilities are not an object.');
   }
   const rawKeys = Object.keys(raw);
   if (rawKeys.length !== keys.length) {
-    return undefined;
+    return invalidResponse('Probability key count differs from the declared categories.');
   }
   const expected = new Set(keys);
   const probabilities = emptyMap<number>();
   let sum = 0;
   for (const key of rawKeys) {
     if (!expected.has(key)) {
-      return undefined;
+      return invalidResponse('Unexpected probability key.');
     }
     const value = raw[key];
     if (!isProbability(value)) {
-      return undefined;
+      return invalidResponse('Probability value is outside [0, 1].');
     }
     defineEntry(probabilities, key, value);
     sum += value;
   }
   if (Math.abs(sum - 1) > keys.length * PROBABILITY_ROUNDING_TOLERANCE + Number.EPSILON) {
-    return undefined;
+    return invalidResponse('Probabilities do not sum to one within rounding tolerance.');
   }
-  return probabilities;
+  return { ok: true, value: probabilities };
 }

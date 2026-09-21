@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { registerAnalyzeCommand } from '../commands/analyze.js';
 import { registerBookmarksCommand } from '../commands/bookmarks.js';
 import { registerCheckCommand } from '../commands/check.js';
 import { registerFollowCommands } from '../commands/follow.js';
@@ -17,6 +18,7 @@ import { getCliVersion } from '../lib/version.js';
 import { type CliContext, collectCookieSource } from './shared.js';
 
 export const KNOWN_COMMANDS = new Set([
+  'analyze',
   'tweet',
   'reply',
   'query-ids',
@@ -100,7 +102,7 @@ export function createProgram(ctx: CliContext): Command {
       ].join('\n\n')}\n\n${ctx.colors.section('Shortcuts')}\n${[
         formatExample('bird <tweet-id-or-url> [--json]', 'Shorthand for `bird read <tweet-id-or-url>`'),
       ].join('\n\n')}\n\n${ctx.colors.section('JSON Output')}\n${ctx.colors.muted(
-        `  Add ${ctx.colors.option('--json')} to: read, replies, thread, search, mentions, bookmarks, likes, following, followers, about, lists, list-timeline, user-tweets, query-ids`,
+        `  Add ${ctx.colors.option('--json')} to: analyze, read, replies, thread, search, mentions, bookmarks, likes, following, followers, about, lists, list-timeline, user-tweets, query-ids`,
       )}\n${ctx.colors.muted(
         `  Add ${ctx.colors.option('--json-full')} to include raw API response in ${ctx.colors.argument('_raw')} field (tweet commands only)`,
       )}\n${ctx.colors.muted(
@@ -144,6 +146,7 @@ export function createProgram(ctx: CliContext): Command {
     ctx.applyOutputFromCommand(actionCommand);
   });
 
+  registerAnalyzeCommand(program, ctx);
   registerHelpCommand(program, ctx);
   registerQueryIdsCommand(program, ctx);
   registerPostCommands(program, ctx);
